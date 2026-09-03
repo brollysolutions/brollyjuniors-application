@@ -8,18 +8,18 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+/build/
+/develop-eggs/
+/dist/
+/downloads/
+/eggs/
+/.eggs/
+/lib/
+/lib64/
+/parts/
+/sdist/
+/var/
+/wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -62,7 +62,7 @@ db.sqlite3
 db.sqlite3-journal
 
 # Flask stuff:
-instance/
+/instance/
 .webassets-cache
 
 # Scrapy stuff:
@@ -73,7 +73,7 @@ docs/_build/
 
 # PyBuilder
 .pybuilder/
-target/
+/target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -216,3 +216,58 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# ---------------------------------------------------------------------
+# Project additions: Node/Next.js, extra secret shapes, and the private
+# agent scaffolding. See section 11 of claude-setup-workflow.md.
+# ---------------------------------------------------------------------
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+!.env.*.example
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+build/
+__pycache__/
+*.py[cod]
+.venv/
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+coverage/
+.playwright/
+test-results/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local Claude overrides
+.claude/settings.local.json
+
+# Assistant files (local instructions only). The agent scaffolding is deliberately
+# untracked in this repository - see section 11 of claude-setup-workflow.md.
+# .git/info/exclude carries the per-clone half of the same list.
+.claude/
+.agents/
+.codex/
+.agent-workflow/
+.mcp.json
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+docs/agent-context/
