@@ -1,0 +1,39 @@
+{
+  "name": "brolly-juniors-b2c",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Brolly Juniors — B2C learning platform for Python and AI",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "npm install && npm run db:reset",
+    "db:migrate": "tsx packages/db/src/migrate.ts",
+    "db:seed": "tsx packages/db/src/seed.ts",
+    "db:reset": "tsx packages/db/src/reset.ts && npm run db:migrate && npm run db:seed",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "tsx watch apps/api/src/server.ts",
+    "dev:web": "npm run dev --workspace @brolly/b2c-web",
+    "build": "npm run build --workspace @brolly/b2c-web",
+    "start": "tsx apps/api/src/server.ts",
+    "test": "tsx --test tests/entitlement.test.ts",
+    "test:e2e": "tsx tests/journey.ts",
+    "test:screens": "tsx tests/screens.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true
+  }
+}

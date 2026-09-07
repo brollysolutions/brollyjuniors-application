@@ -1,0 +1,623 @@
+/**
+ * The Brolly Juniors catalogue.
+ *
+ * Two courses at launch — Python and AI — modelled richly enough that the
+ * catalogue, the reader, the exercises and the quizzes all have real content to
+ * work with. Adding a third course is another entry in this file.
+ */
+
+export type TestCase = {
+  name: string
+  stdin?: string
+  expect?: string
+  requireSource?: string
+  forbidSource?: string
+  hint?: string
+}
+
+export type LessonSpec = {
+  title: string
+  minutes: number
+  body: any[]
+  exercises?: Array<{
+    title: string; level: string; brief: string; starter: string
+    hints: string[]; solution: string; tests: TestCase[]
+  }>
+}
+
+export type ModuleSpec = { title: string; summary: string; lessons: LessonSpec[] }
+
+export type CourseSpec = {
+  slug: string
+  subject: 'python' | 'ai'
+  title: string
+  subtitle: string
+  description: string
+  level: string
+  ageRange: string
+  durationHours: number
+  priceMinor: number
+  outcomes: string[]
+  requirements: string[]
+  modules: ModuleSpec[]
+  textbook: {
+    slug: string; title: string; edition: string
+    chapters: Array<{ title: string; sections: Array<{ title: string; body: any[] }> }>
+  }
+  quizzes: Array<{
+    title: string; description: string; moduleIndex: number; passMark: number
+    questions: Array<{ text: string; options: string[]; answer: number; explanation: string; topic: string }>
+  }>
+  materials: Array<{ title: string; description: string; kind: string; moduleIndex?: number }>
+  recordings: Array<{ title: string; description: string; minutes: number; moduleIndex: number }>
+}
+
+const p = (text: string) => ({ type: 'paragraph', text })
+const h = (text: string) => ({ type: 'heading', level: 3, text })
+const code = (source: string) => ({ type: 'code', language: 'python', source })
+const list = (...items: string[]) => ({ type: 'list', items })
+const tip = (text: string) => ({ type: 'callout', variant: 'tip', text })
+const warn = (text: string) => ({ type: 'callout', variant: 'warning', text })
+
+// ===========================================================================
+// Python
+// ===========================================================================
+
+export const PYTHON: CourseSpec = {
+  slug: 'python-foundations',
+  subject: 'python',
+  title: 'Python Foundations',
+  subtitle: 'From your first line of code to writing programs that actually do something.',
+  description:
+    'A twelve-week course that takes a complete beginner to the point of writing real programs. ' +
+    'Every lesson pairs a short explanation with code you run yourself, and every week ends with ' +
+    'a live class where you can ask the thing you did not want to ask in front of your class at school.',
+  level: 'Beginner',
+  ageRange: '11–16',
+  durationHours: 24,
+  priceMinor: 499900,
+  outcomes: [
+    'Write and run Python programs on your own machine',
+    'Use variables, conditions and loops without looking them up',
+    'Read an error message and know what to do about it',
+    'Build a small project from a blank file',
+  ],
+  requirements: ['A computer with a browser', 'No previous programming needed'],
+  modules: [
+    {
+      title: 'Getting started',
+      summary: 'What a program is, and how to make the computer do something.',
+      lessons: [
+        {
+          title: 'Your first program',
+          minutes: 12,
+          body: [
+            h('A program is a list of instructions'),
+            p('The computer does exactly what you write, in the order you write it. That is the whole idea, and it is also why programming is frustrating at first: the computer is never wrong about what you asked, only about what you meant.'),
+            code('print("Hello!")\nprint("My name is Aarav")'),
+            p('print() puts something on the screen. The brackets hold what you want printed, and text goes in quotes.'),
+            tip('If you see a red error mentioning a quote, you probably opened one and forgot to close it.'),
+          ],
+          exercises: [{
+            title: 'Print your own name',
+            level: 'Easy',
+            brief: 'Print your name on the screen. One line is enough.',
+            starter: '# Print your name below\n',
+            hints: ['print() puts something on the screen', 'Text goes inside quotes: print("Aarav")'],
+            solution: 'print("Aarav")',
+            tests: [{ name: 'prints something', requireSource: 'print\\s*\\(', hint: 'Use print() so we can see your answer.' }],
+          }],
+        },
+        {
+          title: 'What a variable holds',
+          minutes: 14,
+          body: [
+            h('A name for a value'),
+            p('When you write age = 14, Python stores 14 and lets you reach it again by the name age. The name is not the value; it points at the value.'),
+            code('age = 14\nname = "Aarav"\nprint(name, "is", age)'),
+            h('Names that make code readable'),
+            list('Use lowercase with underscores: total_marks, not TM', 'A name cannot start with a number', 'Choose a name that says what it holds'),
+          ],
+          exercises: [{
+            title: 'Swap two values',
+            level: 'Easy',
+            brief: 'Two variables a and b are given. Print them, swap them, then print them again.',
+            starter: 'a = 3\nb = 8\n\n# print, swap, print again\n',
+            hints: ['Python can do a, b = b, a in one line', 'Or use a third variable to hold one of them'],
+            solution: 'a = 3\nb = 8\nprint(a, b)\na, b = b, a\nprint(a, b)',
+            tests: [{ name: 'shows 8 after the swap', expect: '8' }],
+          }],
+        },
+        {
+          title: 'Data types and conversion',
+          minutes: 16,
+          body: [
+            h('Four types you will use constantly'),
+            list('int — a whole number, like 14', 'float — a number with a decimal point, like 14.5', 'str — text, always in quotes', 'bool — True or False, with capital letters'),
+            code('print(type(5))      # <class \'int\'>\nprint(type(5.0))    # <class \'float\'>\nprint(type("5"))    # <class \'str\'>\nprint(5 / 2)        # 2.5  — division always gives a float'),
+            tip('When something behaves strangely, print the type first. It is the fastest way to find the problem.'),
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Input and decisions',
+      summary: 'Programs that ask questions and choose what to do.',
+      lessons: [
+        {
+          title: 'Taking input from the user',
+          minutes: 15,
+          body: [
+            h('The rule to remember'),
+            p('input() always gives you text. Even when the person types 25, Python holds the characters "2" and "5", not the number twenty-five.'),
+            code('age = input("Your age? ")\nprint(age + 1)      # this breaks\nprint(int(age) + 1) # this works'),
+            h('Three things that go wrong'),
+            list(
+              'Adding to text instead of a number, so 25 + 1 becomes an error',
+              'Forgetting the space at the end of the question, so the answer sticks to it',
+              'Using int() on something that is not a number at all'),
+            warn('int("twenty five") will not work. int() only converts text that looks like a number.'),
+          ],
+          exercises: [{
+            title: 'Add two numbers the user types',
+            level: 'Easy',
+            brief: 'Ask for two numbers and print their total. Remember what input() gives you back.',
+            starter: 'a = input("First number: ")\nb = input("Second number: ")\n\n# print the total\n',
+            hints: ['input() gives text, not a number', 'int(a) + int(b) is the total'],
+            solution: 'a = input("First number: ")\nb = input("Second number: ")\nprint(int(a) + int(b))',
+            tests: [
+              { name: '3 and 4 make 7', stdin: '3\n4\n', expect: '7' },
+              { name: '25 and 17 make 42', stdin: '25\n17\n', expect: '42', hint: 'If you saw 2517, you joined the text instead of adding the numbers.' },
+            ],
+          }],
+        },
+        {
+          title: 'Conditions: if, elif, else',
+          minutes: 18,
+          body: [
+            h('Choosing between paths'),
+            code('marks = int(input("Marks? "))\n\nif marks >= 75:\n    print("Distinction")\nelif marks >= 50:\n    print("Pass")\nelse:\n    print("Try again")'),
+            p('elif only runs when every condition above it was false. else runs when none of them were true.'),
+            h('Indentation is not decoration'),
+            p('The spaces at the start of a line tell Python which lines belong inside the if. Four spaces is the convention. Mixing tabs and spaces is the commonest first-week error.'),
+          ],
+          exercises: [{
+            title: 'Biggest of three numbers',
+            level: 'Medium',
+            brief: 'Read three numbers and print the biggest, using if and elif. Do not use max().',
+            starter: 'a = int(input())\nb = int(input())\nc = int(input())\n\n# which is biggest?\n',
+            hints: ['Compare a with b first, then the winner with c', 'if a > b and a > c:'],
+            solution: 'a = int(input())\nb = int(input())\nc = int(input())\nif a > b and a > c:\n    print(a)\nelif b > c:\n    print(b)\nelse:\n    print(c)',
+            tests: [
+              { name: '4, 9, 2 gives 9', stdin: '4\n9\n2\n', expect: '9', forbidSource: 'max\\s*\\(', hint: 'The task asks you to compare them yourself, without max().' },
+              { name: '11, 3, 7 gives 11', stdin: '11\n3\n7\n', expect: '11' },
+            ],
+          }],
+        },
+      ],
+    },
+    {
+      title: 'Loops and lists',
+      summary: 'Doing something many times, and holding many things at once.',
+      lessons: [
+        {
+          title: 'for and while',
+          minutes: 20,
+          body: [
+            h('Two kinds of repetition'),
+            p('for repeats a fixed number of times. while repeats until something changes.'),
+            code('for i in range(1, 11):\n    print(i)\n\nn = 1\nwhile n <= 10:\n    print(n)\n    n = n + 1'),
+            p('range(1, 11) gives you 1 to 10 — it stops before the second number, which surprises everyone once.'),
+            warn('A while loop whose condition never becomes false runs forever. If your program hangs, that is why.'),
+          ],
+          exercises: [{
+            title: 'Times table using a loop',
+            level: 'Medium',
+            brief: 'Print the 5 times table from 5 x 1 to 5 x 10, one line each. Use a loop — not ten print lines.',
+            starter: '# Print the 5 times table using a loop\n',
+            hints: ['range(1, 11) gives the numbers 1 to 10', 'Inside the loop: print(5, "x", i, "=", 5*i)'],
+            solution: 'for i in range(1, 11):\n    print(5, "x", i, "=", 5 * i)',
+            tests: [
+              { name: 'uses a loop', requireSource: '(for\\s+\\w+\\s+in|while\\s)', hint: 'The task asks for a loop. Ten print lines will not pass.' },
+              { name: 'starts at 5', expect: '5' },
+              { name: 'reaches 50', expect: '50', hint: 'The last line should be 5 x 10 = 50.' },
+            ],
+          }],
+        },
+        {
+          title: 'Lists',
+          minutes: 18,
+          body: [
+            h('Many values under one name'),
+            code('marks = [78, 65, 90, 55, 82]\nprint(marks[0])      # 78 — counting starts at zero\nprint(len(marks))    # 5\nmarks.append(71)'),
+            h('Walking through a list'),
+            code('total = 0\nfor m in marks:\n    total = total + m\nprint("Average:", total / len(marks))'),
+          ],
+          exercises: [{
+            title: 'Count the even numbers',
+            level: 'Hard',
+            brief: 'Given the list below, print how many of the numbers are even.',
+            starter: 'numbers = [4, 7, 10, 3, 8, 15, 2]\n\n# count the even ones\n',
+            hints: ['A number is even when n % 2 == 0', 'Keep a counter starting at 0 and add 1 each time'],
+            solution: 'numbers = [4, 7, 10, 3, 8, 15, 2]\ncount = 0\nfor n in numbers:\n    if n % 2 == 0:\n        count = count + 1\nprint(count)',
+            tests: [
+              { name: 'uses a loop', requireSource: '(for\\s+\\w+\\s+in|while\\s)' },
+              { name: 'answer is 4', expect: '4', hint: '4, 10, 8 and 2 are even.' },
+            ],
+          }],
+        },
+      ],
+    },
+  ],
+  textbook: {
+    slug: 'python-foundations-textbook',
+    title: 'Python Foundations — the book',
+    edition: '2nd edition',
+    chapters: [
+      {
+        title: 'Chapter 1 — Starting out',
+        sections: [
+          {
+            title: 'What programming actually is',
+            body: [
+              p('A program is a set of instructions written precisely enough that a machine can follow them without asking you what you meant.'),
+              p('That precision is the whole skill. Everything else — the syntax, the libraries, the tools — is detail you can look up.'),
+              h('Why Python'),
+              list('It reads close to English', 'It is used in real work, from science to web sites', 'The error messages tell you something useful'),
+            ],
+          },
+          {
+            title: 'Running your first line',
+            body: [
+              p('Open the editor, type one line, press Run. The output appears underneath.'),
+              code('print("Hello!")'),
+              tip('You cannot break anything by running code. Try the wrong thing on purpose and read what it says.'),
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Chapter 2 — Variables and types',
+        sections: [
+          {
+            title: 'Naming values',
+            body: [
+              p('A variable is a name that refers to a value. Assigning to it again points the name somewhere new; it does not change the old value.'),
+              code('score = 10\nscore = score + 5\nprint(score)   # 15'),
+            ],
+          },
+          {
+            title: 'Converting between types',
+            body: [
+              p('int(), float() and str() move a value from one type to another. They do not change the original — they hand you a new value.'),
+              code('age_text = "14"\nage = int(age_text)\nprint(age + 1)   # 15'),
+              warn('int() on text that is not a number raises ValueError. That is Python telling you the input was not what you assumed.'),
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Chapter 3 — Making decisions',
+        sections: [
+          {
+            title: 'Comparing values',
+            body: [
+              list('== is "equal to". A single = assigns.', '!= is "not equal to"', '< > <= >= work as you expect'),
+              code('if marks >= 50:\n    print("Pass")\nelse:\n    print("Try again")'),
+            ],
+          },
+          {
+            title: 'Combining conditions',
+            body: [
+              p('and requires both sides to be true; or requires either. not flips a condition.'),
+              code('if age >= 13 and consent == True:\n    print("Can sign up")'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  quizzes: [
+    {
+      title: 'Unit 1 — Getting started',
+      description: 'Variables, types and printing. Ten minutes.',
+      moduleIndex: 0,
+      passMark: 60,
+      questions: [
+        { text: 'What will print(type(5 / 2)) show in Python 3?', options: ["<class 'int'>", "<class 'float'>", "<class 'str'>", 'It raises an error'], answer: 1, explanation: 'Division always produces a float, even when the result is whole.', topic: 'Types' },
+        { text: 'Which line converts the text "25" into a number?', options: ['str(25)', 'int("25")', 'float("twenty five")', 'print("25")'], answer: 1, explanation: 'int() converts text that looks like a whole number.', topic: 'Types' },
+        { text: 'Which is a valid variable name?', options: ['2marks', 'total marks', 'total_marks', 'total-marks'], answer: 2, explanation: 'Names cannot start with a digit or contain spaces or hyphens.', topic: 'Variables' },
+        { text: 'What does print("5" + "5") show?', options: ['10', '55', 'An error', '5 5'], answer: 1, explanation: 'Adding two strings joins them. Adding two numbers adds them.', topic: 'Types' },
+        { text: 'After score = 10 then score = score + 5, what is score?', options: ['10', '5', '15', 'An error'], answer: 2, explanation: 'The right-hand side is worked out first, then assigned back to the name.', topic: 'Variables' },
+      ],
+    },
+    {
+      title: 'Unit 2 — Input and decisions',
+      description: 'input(), if / elif / else and comparisons.',
+      moduleIndex: 1,
+      passMark: 60,
+      questions: [
+        { text: 'What does input() always return?', options: ['An integer', 'A float', 'A string', 'Whatever the user typed, in its own type'], answer: 2, explanation: 'Always text. Convert it before doing arithmetic.', topic: 'Input' },
+        { text: 'In an if / elif / else chain, when does else run?', options: ['Always', 'Only if every condition above was false', 'Only if the first was true', 'Never'], answer: 1, explanation: 'else is the fallback when nothing above matched.', topic: 'Conditions' },
+        { text: 'What is the value of 7 % 2?', options: ['0', '1', '3', '3.5'], answer: 1, explanation: '% gives the remainder. 7 divided by 2 leaves 1.', topic: 'Operators' },
+        { text: 'Which operator tests equality?', options: ['=', '==', '=>', ':='], answer: 1, explanation: 'A single = assigns; == compares.', topic: 'Conditions' },
+      ],
+    },
+    {
+      title: 'Unit 3 — Loops and lists',
+      description: 'for, while, range() and lists.',
+      moduleIndex: 2,
+      passMark: 60,
+      questions: [
+        { text: 'How many numbers does range(1, 11) produce?', options: ['9', '10', '11', '12'], answer: 1, explanation: 'It starts at 1 and stops before 11, so 1 to 10.', topic: 'Loops' },
+        { text: 'Which keyword starts a loop that runs a fixed number of times?', options: ['while', 'repeat', 'for', 'loop'], answer: 2, explanation: 'for iterates a known number of times; while repeats until a condition changes.', topic: 'Loops' },
+        { text: 'For marks = [78, 65, 90], what is marks[0]?', options: ['65', '78', '90', 'An error'], answer: 1, explanation: 'Counting starts at zero.', topic: 'Lists' },
+        { text: 'What is the commonest cause of a program that never finishes?', options: ['A for loop', 'A while condition that never becomes false', 'Too many variables', 'Using print()'], answer: 1, explanation: 'If nothing inside the loop changes the condition, it runs forever.', topic: 'Loops' },
+      ],
+    },
+  ],
+  materials: [
+    { title: 'Python quick reference card', description: 'Everything from the first three units on one printable page.', kind: 'pdf' },
+    { title: 'Week 1 worksheet — variables', description: 'Twelve short questions to do on paper.', kind: 'worksheet', moduleIndex: 0 },
+    { title: 'Starter code files', description: 'Every exercise as a .py file you can open locally.', kind: 'code', moduleIndex: 0 },
+    { title: 'Common errors and what they mean', description: 'The eight errors beginners hit most, and the fix for each.', kind: 'pdf', moduleIndex: 1 },
+  ],
+  recordings: [
+    { title: 'Week 1 live class — your first program', description: 'The recorded session, including the questions students asked.', minutes: 48, moduleIndex: 0 },
+    { title: 'Week 2 live class — input and type conversion', description: 'Working through the input() rule with live examples.', minutes: 52, moduleIndex: 1 },
+    { title: 'Week 3 live class — loops', description: 'Building the times table together, then breaking it on purpose.', minutes: 55, moduleIndex: 2 },
+    { title: 'Debugging clinic — reading an error message', description: 'A short extra session on tracebacks.', minutes: 26, moduleIndex: 1 },
+  ],
+}
+
+// ===========================================================================
+// Artificial Intelligence
+// ===========================================================================
+
+export const AI: CourseSpec = {
+  slug: 'ai-for-beginners',
+  subject: 'ai',
+  title: 'Artificial Intelligence for Beginners',
+  subtitle: 'What AI actually is, how it learns from data, and where it goes wrong.',
+  description:
+    'An eight-week introduction to artificial intelligence for students who have never trained a model. ' +
+    'No heavy mathematics. You will work with real data, build a simple classifier, and finish able to ' +
+    'explain why an AI system made a decision — and when you should not trust it.',
+  level: 'Beginner',
+  ageRange: '13–17',
+  durationHours: 18,
+  priceMinor: 599900,
+  outcomes: [
+    'Explain what makes a system "AI" rather than ordinary software',
+    'Take a dataset from messy to usable',
+    'Train and evaluate a simple model',
+    'Spot bias in data before it becomes bias in a decision',
+  ],
+  requirements: ['Comfortable with basic Python', 'Python Foundations, or equivalent'],
+  modules: [
+    {
+      title: 'What AI is',
+      summary: 'Definitions that survive contact with reality.',
+      lessons: [
+        {
+          title: 'Learning from data, not instructions',
+          minutes: 14,
+          body: [
+            h('The one distinction that matters'),
+            p('Ordinary software follows rules a person wrote. An AI system finds the rules itself, from examples. That is the whole difference, and everything else follows from it.'),
+            p('It also explains the failure mode: a model learns the world it was shown, including the parts of that world nobody meant to teach it.'),
+            list('Spam filters learn from mail people marked as spam', 'Recommendation systems learn from what people watched', 'A face recogniser learns from the faces it was given'),
+          ],
+        },
+        {
+          title: 'The AI project cycle',
+          minutes: 16,
+          body: [
+            h('Five stages, in order'),
+            list(
+              'Problem scoping — who has the problem, and what counts as solving it',
+              'Data acquisition — where the data comes from, and with whose permission',
+              'Data exploration — looking before modelling',
+              'Modelling — the part everyone thinks is the whole job',
+              'Evaluation — does it work for the people it was built for'),
+            tip('If you cannot write the problem statement in one sentence, you are not ready to collect data.'),
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Working with data',
+      summary: 'Most of a real project is here.',
+      lessons: [
+        {
+          title: 'Where data comes from',
+          minutes: 15,
+          body: [
+            h('Primary and secondary'),
+            p('Primary data you collect yourself. Secondary data someone else collected, for their own purpose — which is why it rarely fits yours exactly.'),
+            h('Consent is not optional'),
+            p('If the data is about people, they need to know it is being collected and what for. That applies to a school project as much as to a company.'),
+          ],
+        },
+        {
+          title: 'Cleaning messy data',
+          minutes: 18,
+          body: [
+            h('The three problems you will always find'),
+            list('Missing values — a blank is not a zero', 'Duplicates — the same person recorded twice', 'Impossible values — an age of 250'),
+            code('import statistics\n\nages = [12, 13, None, 14, 250, 13]\nclean = [a for a in ages if a is not None and 0 < a < 120]\nprint(clean)\nprint("median:", statistics.median(clean))'),
+            warn('Never silently delete a row you do not understand. Record what you removed and why.'),
+          ],
+          exercises: [{
+            title: 'Remove the impossible ages',
+            level: 'Medium',
+            brief: 'The list has a missing value and one impossible age. Print the cleaned list.',
+            starter: 'ages = [12, 13, None, 14, 250, 13]\n\n# print only the sensible ages\n',
+            hints: ['Check for None first, then check the range', 'A loop with an if inside works fine'],
+            solution: 'ages = [12, 13, None, 14, 250, 13]\nclean = []\nfor a in ages:\n    if a is not None and 0 < a < 120:\n        clean.append(a)\nprint(clean)',
+            tests: [
+              { name: 'drops the impossible age', forbidSource: 'print\\(\\s*ages\\s*\\)', hint: 'Print the cleaned list, not the original.' },
+              { name: 'keeps 14', expect: '14' },
+            ],
+          }],
+        },
+      ],
+    },
+    {
+      title: 'Statistics you actually need',
+      summary: 'Enough to read a result honestly.',
+      lessons: [
+        {
+          title: 'Mean, median and mode',
+          minutes: 16,
+          body: [
+            h('Three answers to one question'),
+            list(
+              'Mean — add everything, divide by how many. Moves when one value is extreme.',
+              'Median — put them in order, take the middle. Barely moves.',
+              'Mode — the value appearing most often. Useful for categories.'),
+            h('Why it matters'),
+            p('Marks: 12, 14, 15, 16, 98. The mean is 31, which describes nobody. The median is 15, which describes almost everyone. One unusual value dragged the mean away from the truth.'),
+          ],
+          exercises: [{
+            title: 'Mean and median',
+            level: 'Medium',
+            brief: 'Print the mean and the median of the marks list. You may use the statistics module.',
+            starter: 'marks = [12, 14, 15, 16, 98]\n\n# print the mean, then the median\n',
+            hints: ['import statistics gives you statistics.mean and statistics.median', 'Or compute the mean with sum(marks) / len(marks)'],
+            solution: 'import statistics\nmarks = [12, 14, 15, 16, 98]\nprint(statistics.mean(marks))\nprint(statistics.median(marks))',
+            tests: [{ name: 'median is 15', expect: '15' }],
+          }],
+        },
+        {
+          title: 'Reading a chart without being fooled',
+          minutes: 14,
+          body: [
+            h('Read the scale before the shape'),
+            p('A bar chart whose axis starts at 90 rather than 0 makes a two-point difference look enormous. Check the axis first, every time.'),
+            list('Bar — comparing separate groups', 'Line — something changing over time', 'Pie — parts of one whole, and only when there are few parts'),
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Bias and responsibility',
+      summary: 'The part that decides whether the system should be built at all.',
+      lessons: [
+        {
+          title: 'Where bias comes from',
+          minutes: 17,
+          body: [
+            h('It is almost never the algorithm'),
+            p('A model reproduces the pattern in its training data. If the data under-represents a group, the model works worse for that group — and it will do so confidently, which is what makes it dangerous.'),
+            h('Questions to ask before trusting a prediction'),
+            list(
+              'Who is in the training data, and who is missing?',
+              'Who checked the result for the people it affects?',
+              'What happens to someone the model gets wrong?'),
+          ],
+        },
+      ],
+    },
+  ],
+  textbook: {
+    slug: 'ai-for-beginners-textbook',
+    title: 'AI for Beginners — the book',
+    edition: '1st edition',
+    chapters: [
+      {
+        title: 'Chapter 1 — Defining AI',
+        sections: [
+          {
+            title: 'Rules versus learning',
+            body: [
+              p('The clearest test: could a person have written down the rule? If yes, it is ordinary software. If the rule was found in data, it is machine learning.'),
+              list('A calculator follows rules', 'A spam filter learned them', 'A thermostat follows rules; a smart thermostat learned your habits'),
+            ],
+          },
+          {
+            title: 'Where you already meet AI',
+            body: [
+              p('Search suggestions, photo tagging, route prediction, video recommendations, voice assistants. You interact with several before breakfast.'),
+              tip('Pick one you used today and try to describe what data it must have learned from.'),
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Chapter 2 — Data',
+        sections: [
+          {
+            title: 'Collecting data responsibly',
+            body: [
+              p('Write the question first. Then decide what single piece of data would answer it. Only then design the form.'),
+              list('What exactly are you measuring?', 'Who is being asked, and did they agree?', 'What will you do with a blank answer?'),
+            ],
+          },
+          {
+            title: 'Describing a dataset',
+            body: [
+              p('Before modelling, know the shape of what you have: how many rows, how many columns, what is missing and what is impossible.'),
+              code('rows = 240\nmissing_age = 12\nprint("rows:", rows)\nprint("missing age:", missing_age, "->", round(missing_age / rows * 100, 1), "%")'),
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Chapter 3 — Evaluation and ethics',
+        sections: [
+          {
+            title: 'Accuracy is not enough',
+            body: [
+              p('A model that predicts "not fraud" every time is 99% accurate on a dataset where 1% is fraud, and completely useless. Always ask what the model is accurate at.'),
+            ],
+          },
+          {
+            title: 'Who is responsible',
+            body: [
+              p('The people who built and deployed the system. "The computer decided" has never been a complete answer, and it will not become one.'),
+              warn('If you cannot explain why a system produced a decision, think hard before letting it make that decision about a person.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  quizzes: [
+    {
+      title: 'Unit 1 — What AI is',
+      description: 'Definitions and the project cycle.',
+      moduleIndex: 0,
+      passMark: 60,
+      questions: [
+        { text: 'Which is the clearest sign a system is using AI?', options: ['It runs on a fast computer', 'It improves at a task from data', 'It has a colourful interface', 'It is connected to the internet'], answer: 1, explanation: 'Learning from data is the distinguishing feature.', topic: 'Definition' },
+        { text: 'Which stage of the AI project cycle comes first?', options: ['Modelling', 'Data acquisition', 'Problem scoping', 'Evaluation'], answer: 2, explanation: 'You cannot collect the right data until you know the problem.', topic: 'Project cycle' },
+        { text: 'A model works poorly for one group of people. The most likely cause is:', options: ['A slow processor', 'Training data that did not include them', 'Too many lines of code', 'A missing internet connection'], answer: 1, explanation: 'A model reproduces the pattern in its training data.', topic: 'Bias' },
+      ],
+    },
+    {
+      title: 'Unit 2 — Data and statistics',
+      description: 'Cleaning, describing and reading data.',
+      moduleIndex: 1,
+      passMark: 60,
+      questions: [
+        { text: 'Data you collect yourself for your own project is called:', options: ['Secondary data', 'Primary data', 'Open data', 'Meta data'], answer: 1, explanation: 'Primary is first-hand; secondary was collected by someone else.', topic: 'Sources' },
+        { text: 'A survey records an age of 250. The right first action is to:', options: ['Delete the whole survey', 'Treat it as an error and record it as missing', 'Round it down to 100', 'Leave it — data is data'], answer: 1, explanation: 'Record the correction; never silently invent a plausible value.', topic: 'Cleaning' },
+        { text: 'Marks are 12, 14, 15, 16 and 98. Which is true?', options: ['The mean describes the class well', 'The median describes the class better than the mean', 'Mean and median are equal', 'The mode is 98'], answer: 1, explanation: 'One extreme value drags the mean but barely moves the median.', topic: 'Statistics' },
+        { text: 'A bar chart whose axis starts at 90 rather than 0 will:', options: ['Show differences accurately', 'Make small differences look large', 'Make large differences look small', 'Have no effect'], answer: 1, explanation: 'A truncated axis exaggerates. Read the scale first.', topic: 'Charts' },
+      ],
+    },
+  ],
+  materials: [
+    { title: 'Sample dataset — school travel survey', description: '240 rows, deliberately messy, for the cleaning exercises.', kind: 'code' },
+    { title: 'AI project cycle poster', description: 'The five stages on one page.', kind: 'pdf', moduleIndex: 0 },
+    { title: 'Bias checklist', description: 'Questions to ask before trusting a model.', kind: 'worksheet', moduleIndex: 3 },
+  ],
+  recordings: [
+    { title: 'Week 1 live class — what counts as AI', description: 'Discussion session with worked examples.', minutes: 46, moduleIndex: 0 },
+    { title: 'Week 2 live class — cleaning the travel survey', description: 'Working through the messy dataset together.', minutes: 58, moduleIndex: 1 },
+    { title: 'Week 4 live class — bias in practice', description: 'Two real cases, and what should have been checked.', minutes: 44, moduleIndex: 3 },
+  ],
+}
+
+export const COURSES: CourseSpec[] = [PYTHON, AI]
