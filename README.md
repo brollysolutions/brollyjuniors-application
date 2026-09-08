@@ -4,8 +4,16 @@ The B2C learning platform, rebuilt on Next.js and Python.
 
 **This branch is B2C only.** The multi-tenant B2B school platform that used to
 sit at the repo root — `apps/`, `packages/`, `tests/`, `docs/` and the root
-workspace files — was removed from `dev2`. It is untouched on `dev1` and on the
-remote, so `git checkout dev1 -- <path>` brings any of it back.
+workspace files — was removed from `dev2`. Nothing is lost; it is still in two
+places, so any file comes back with either of:
+
+```bash
+git checkout origin/dev1 -- apps/api/src/server.ts   # the B2B branch
+git checkout 32067ea -- docs/                        # this branch, before the removal
+```
+
+There is no local `dev1` branch, only `origin/dev1` — hence the remote-tracking
+name above.
 
 The previous TypeScript B2C build stays in [`B2C/`](./B2C) as the reference the
 port was made from.
