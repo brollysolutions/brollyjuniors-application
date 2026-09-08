@@ -1,6 +1,22 @@
+# --- node ---
 node_modules/
 dist/
+.next/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- python ---
+.venv/
+__pycache__/
+*.py[cod]
+
+# --- local data and secrets ---
+# .data holds PGlite's files for the old B2C build and the API's signing keys.
 .data/
+.env
+.env.local
+
+# --- misc ---
 .tmp-*.log
 *.local
 .DS_Store

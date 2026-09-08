@@ -1,163 +1,173 @@
-# Brolly Juniors
+# Brolly Juniors B2C — Next.js + FastAPI + Postgres + Redis
 
-A multi-tenant Python & AI platform for schools. One application, four logins,
-five schools sharing one master curriculum — and no school able to see past its
-own line.
+The B2C learning platform, rebuilt on Next.js and Python.
 
-Built from [`brolly-app-endtoend-prototype.html`](./brolly-app-endtoend-prototype.html)
-on the architecture in [`docs/architecture/`](./docs/architecture/README.md).
+**This branch is B2C only.** The multi-tenant B2B school platform that used to
+sit at the repo root — `apps/`, `packages/`, `tests/`, `docs/` and the root
+workspace files — was removed from `dev2`. It is untouched on `dev1` and on the
+remote, so `git checkout dev1 -- <path>` brings any of it back.
+
+The previous TypeScript B2C build stays in [`B2C/`](./B2C) as the reference the
+port was made from.
+
+| Layer | Was | Is now |
+|---|---|---|
+| Frontend | React 19 + Vite (SPA, port 5273) | **Next.js 16.3.4** + React 19 (port **3000**) |
+| Backend | Fastify 5 + TypeScript (port 4100) | **FastAPI** + Python 3.14 (port **8000**) |
+| Database | PGlite (Postgres 16 in WebAssembly, file-backed) | **PostgreSQL 16** in Docker, port **5542** |
+| Cache | *(none — in-process dicts)* | **Redis 7** in Docker, port **6479** |
 
 ---
 
 ## Run it
 
 ```bash
+docker compose up -d                      # Postgres :5542, Redis :6479
+
+cd backend
+py -3 -m venv .venv
+./.venv/Scripts/python.exe -m pip install -r requirements.txt
+./.venv/Scripts/python.exe scripts/reset.py     # drop and recreate the schema
+./.venv/Scripts/python.exe scripts/migrate.py   # apply sql/001..006
+./.venv/Scripts/python.exe scripts/seed.py      # 180 students, 2 courses
+./.venv/Scripts/python.exe -m uvicorn app.main:app --reload --port 8000
+
+cd ../frontend
 npm install
-npm run db:reset     # creates the database and seeds 5 schools, 694 students
-npm run dev          # API on :4000, web on :5173
+npm run dev                               # http://localhost:3000
 ```
 
-Then open **http://localhost:5173** and sign in as any of the four roles — the
-login page has a one-click button for each.
+Then open **http://localhost:3000**. The sign-in page has a one-click button
+for each demo login.
 
-| Role | Sign in with | Password |
+| Role | Email | Password |
 |---|---|---|
-| Brolly admin | `admin@brollysoftware.com` | `brolly` |
-| School admin | `principal@vidyavihar.edu.in` | `brolly` |
-| Teacher | `sneha.r@vidyavihar.edu.in` | `brolly` |
-| Student | school code `VVHS-KUK`, username `9A-04` | `student` |
+| Brolly admin | `admin@brollyjuniors.com` | `brolly` |
+| Teacher | `sneha.reddy@brollyjuniors.com` | `brolly` |
+| Student — both courses | `aarav@example.com` | `learn` |
+| Student — AI only | `sana@example.com` | `learn` |
 
-Other schools to compare against: `SPS-MYP`, `RGS-SEC`, `NV-GCB`, `CHS-NZM`.
-Every school admin is `principal@<schoolname>.edu.in` with password `brolly`.
+> Open Python Foundations as `sana@example.com` to watch entitlement work: the
+> API answers **404**, not 403, because a student who has not bought a course
+> should not learn that the id they guessed is a real one.
 
-> **No database to install.** The default driver is
-> [PGlite](https://pglite.dev) — real PostgreSQL 16 compiled to WebAssembly,
-> running in-process and stored in `.data/`. Row-level security, policies and
-> composite foreign keys all behave exactly as they would on a server, which is
-> what makes the isolation tests meaningful. Point `DB_DRIVER=pg` and
-> `DATABASE_URL` at a real Postgres and nothing else changes.
->
-> Stop the API before `npm run db:reset` — it holds the database open.
+**You only ever open port 3000.** Next rewrites `/api/*` to FastAPI on 8000, so
+the browser sees a single origin — which is what lets the refresh token be an
+HttpOnly `SameSite=Lax` cookie instead of something JavaScript can read.
+
+---
 
 ## Test it
 
 ```bash
-npm test            # 25 tests: row-level security, composite FKs, schema meta-tests
-npm run test:e2e    # 45 assertions: the whole 15-step chain through the real API
-npm run test:screens # 51 screens: every portal screen's data loads and renders
-npm run typecheck
+cd backend
+./.venv/Scripts/python.exe scripts/test_rls.py    # 16 checks, no app code in the way
 ```
 
-`test` runs against the database with no application code in the way, so it
-proves the isolation the app *cannot* switch off. `test:e2e` and `test:screens`
-need `npm run dev:api` running.
+`test_rls.py` runs straight against Postgres as the `brolly_app` role with the
+same two settings the API pins per request. Nothing calls a handler, so what
+passes is the database's own guarantee.
+
+An end-to-end API suite (44 checks: public catalogue, auth, throttling,
+bootstrap, entitlement, quiz marking, signed media, token rotation) was used to
+verify the port; it lives outside the repo in the session scratchpad.
 
 ---
 
 ## What is here
 
 ```
-apps/
-  api/          Fastify + TypeScript. Auth, RBAC, four portals' worth of endpoints.
-  web/          React + Vite. One application; the shell is computed from the login.
-packages/
-  db/           SQL schema, RLS policies, migrations, seed, dual Postgres driver.
-  shared/       Permissions, features and roles — one definition, used by both sides.
-tests/          Isolation suite, end-to-end chain, screen coverage.
-docs/           The Phase 1 architecture these were built from.
+docker-compose.yml   Postgres 16 on 5542, Redis 7 on 6479
+backend/
+  app/
+    main.py          FastAPI app, problem+json errors, security headers
+    config.py        every value has a working default
+    db.py            asyncpg pool; actor()/anon()/admin() scopes
+    deps.py          the request pipeline, and deny-by-default at boot
+    access.py        effective authority, cached in Redis
+    entitlement.py   "may this caller reach this course"
+    audit.py         append-only, redacted by whitelist
+    media.py         short-lived signed links, never a stored URL
+    payments.py      provider behind an interface; mock refuses in production
+    core/
+      passwords.py   scrypt, in the format the old build wrote
+      tokens.py      RS256 access tokens, opaque rotating refresh tokens
+      redis_client.py
+    routers/
+      auth.py        register, login, refresh, logout, change password
+      catalog.py     public catalogue + /me/bootstrap
+      student.py     checkout, courses, lessons, quizzes, assignments, live
+    shared/
+      access.py      3 roles, 46 permissions, 12 features
+      brand.py
+  sql/               001..006, carried over unchanged
+  scripts/           reset, migrate, seed, test_rls
+  seed_data/         courses.json, exported from the original TypeScript
+frontend/
+  src/
+    app/             layout, page, globals.css
+    components/      App shell, public site, student portal, UI primitives
+    lib/             api client, types, Pyodide runner
 ```
-
-### The three claims the code makes good on
-
-**1. One application, one database, `tenant_id` on every tenant-owned row —
-enforced four times over.**
-
-| Layer | Where | What it stops |
-|---|---|---|
-| 1 · Request context | `apps/api/src/guards.ts` | A handler ever choosing its own tenant |
-| 2 · Data access | `packages/db/src/client.ts` | A query running outside a tenant transaction |
-| 3 · Row-level security | `packages/db/sql/003_rls.sql` | A missing `WHERE` returning another school's rows |
-| 4 · Composite foreign keys | `packages/db/sql/001_schema.sql` | *Linking* to another school's row at all |
-
-Layers 3 and 4 hold even if the application tier is compromised, and
-`tests/tenant-isolation.test.ts` proves it against the database directly.
-
-Two of those tests are worth more than the rest put together: they fail when
-someone **adds a table** without a `tenant_id` or without a policy — which is how
-this class of bug actually gets in.
-
-**2. Curriculum is platform-owned and never copied per school.**
-
-Nothing in `subject`, `course`, `unit`, `video`, `material`, `practice_lab`,
-`graded_lab`, `question` or `content_version` carries a `tenant_id`. Five schools
-read the same rows. A school reaches them through `tenant_entitlement` and a
-student through `enrollment` — and `enrollment` is the *single* junction for B2B
-and B2C, which is what "one learning engine" means in practice.
-
-The database also refuses to let a school edit them: the write policy on every
-curriculum table requires platform scope, so "Brolly content cannot be edited"
-is a property of the schema, not a hidden button.
-
-**3. Publishing content is not a deployment.**
-
-`POST /platform/materials/:id/publish` writes a new immutable `content_version`,
-archives the old one, pins a new `content_release` and moves one pointer — all in
-one transaction, guarded by a partial unique index that permits exactly one
-published version per item. The next request from any entitled school reads the
-new text. `npm run test:e2e` does this live and checks a student in a *different*
-school sees the change.
-
-### And one the architecture did not anticipate
-
-Brolly admin can read counts and rates — and the database gives it **no policy at
-all** on `lab_submission`, `exam_answer`, `exam_question`, `video_note`,
-`practice_attempt`, `student_profile`, `announcement` or `teacher_material`. So
-"Brolly cannot open a student's answer sheet" is not a promise the UI is making;
-it is enforced one layer below anything the application can override. Eight tests
-assert it.
 
 ---
 
-## Notable behaviour
+## How the port was done
 
-- **Students sign in without an email address.** School code + roll number +
-  password. Most 13-year-olds have no email, and requiring one manufactures a
-  child-data liability.
-- **Seats are a hard block.** A bulk import that would exceed the licence is
-  refused whole, not truncated — and previewed before anything is written.
-- **Python runs in the browser** (Pyodide). Source rules — "use a loop", "do not
-  use `sum()`" — are re-checked on the server, where a student cannot edit them.
-  Output matching is trusted from the client; that is decision **D7**, and it is
-  why a server-side sandbox is the hardening step before these scores carry
-  weight.
-- **Exams are gated server-side.** A locked paper's questions are not in any
-  response until the start time. Answers autosave to the server, objective
-  questions mark themselves out of a snapshot the browser never sees, and results
-  stay hidden until a teacher presses release — so nobody sees half a result.
-- **The paper is snapshotted at schedule time**, so editing the question bank
-  afterwards cannot change a paper students have already sat.
-- **A revision does not consume an attempt.** The point is the student fixing it.
-- **Deactivate, never delete.** A teacher who leaves keeps their grading history
-  attached to the students they taught.
-- **Branding is a database row.** Colours are validated server-side against a
-  strict hex pattern before they reach a stylesheet, so a branding field cannot
-  become CSS injection. Change one in the School profile and the whole app
-  follows.
-- **Redaction in the audit log is a whitelist**, so a column added tomorrow
-  cannot start leaking into it.
+**The SQL moved unchanged.** All six migration files are byte-identical to the
+originals — they were always plain PostgreSQL. 40 tables, 81 row-level security
+policies, and exactly 5 `SECURITY DEFINER` functions. Running them on a real
+server rather than a WebAssembly build of one is where those policies were
+always meant to live.
 
-## Production notes
+**Every query moved unchanged too.** asyncpg speaks Postgres' native `$1`
+placeholders, which is the reason the SQL inside each handler is the same text
+it was in TypeScript. Had this used psycopg (`%s`) or an ORM, every statement
+would have been a rewrite and every rewrite a chance to change behaviour.
 
-Not done here, and deliberately so:
+**Passwords still verify.** `core/passwords.py` writes and reads the same
+`scrypt$N$r$p$salt$key` format the Node build used, so accounts created before
+the rewrite still sign in.
 
-- **scrypt, not Argon2id.** Node ships scrypt, so the app installs with no native
-  build step. Swap `packages/db/src/password.ts`; the stored format is versioned
-  for a rehash-on-login migration.
-- **Media is metadata-only.** `media_asset` and the content-addressed key scheme
-  are in place; S3 + CloudFront signed URLs are section 06 of the architecture and
-  are not wired up.
-- **No Redis.** Tenant config and permission sets are cached in-process for 15
-  seconds. Swap `apps/api/src/access.ts` when there is more than one API node.
-- **Rate limiting is in-memory**, so it is per-process. Fine for one node.
-- The remaining open decisions are in
-  [`docs/architecture/09-roadmap-risks-decisions.md`](./docs/architecture/09-roadmap-risks-decisions.md).
+**Deny-by-default survived the framework change.** Fastify enforced it with an
+`onRoute` hook that threw at boot. FastAPI has no equivalent, so
+`assert_every_route_guarded()` walks the route table during lifespan startup and
+refuses to boot if any route declares neither `requires(...)` nor
+`public_route`. A forgotten guard is still a startup failure, not a hole found
+in production.
+
+**Redis earns its place.** Two things were process-local dicts in the old build,
+and both were quietly broken the moment a second worker existed:
+
+- the effective-access cache — an admin revoking a role invalidated one worker's
+  copy and left the others serving stale authority for the rest of the TTL;
+- the login throttle — restarting the API was a way to clear your own lockout.
+
+Both now live in Redis. Sessions and refresh tokens deliberately stay in
+Postgres, because losing them would sign everyone out.
+
+---
+
+## Known gaps
+
+- **Teacher and admin portals are not ported.** You chose a vertical slice, so
+  this build covers the public site and the student portal end to end. Signing
+  in as a teacher or admin authenticates correctly and shows a placeholder
+  naming what is missing. The teacher and admin routers (~1,000 lines, 34
+  endpoints) are the next stage.
+- **The seed is statistically equivalent, not byte-identical.** 180 students and
+  both courses match exactly; enrolments come out at 213 rather than 216 and
+  progress rows at 1,910 rather than 2,006, because JavaScript's `Math.round`
+  rounds halves up and Python's `round` rounds them to even. It is demo data,
+  and every dashboard number is still computed rather than written down.
+- **The UI has not been opened in a browser.** The production build compiles
+  clean under TypeScript strict mode, the app shell and its chunks serve, and
+  every endpoint behind the screens is tested — but the Chrome extension was not
+  connected in this session, so nothing visually confirmed the rendered pages.
+
+## Note on this machine
+
+7.9 GB of RAM, and Docker Desktop was killed twice by memory pressure during the
+build. [`~/.wslconfig`](file:///C:/Users/my%20pc/.wslconfig) now caps the WSL2 VM
+at 2 GB, which stopped it. If Docker dies again, `docker compose up -d` brings
+Postgres and Redis back with the data intact — both use named volumes.

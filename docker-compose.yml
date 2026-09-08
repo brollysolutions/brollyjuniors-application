@@ -1,0 +1,50 @@
+# Brolly Juniors B2C — data services.
+#
+# Ports are deliberately non-default so this stack never collides with a
+# Postgres or Redis already installed on the machine:
+#
+#   Postgres 16   host 5542  ->  container 5432
+#   Redis 7       host 6479  ->  container 6379
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: brolly_b2c_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brolly
+      POSTGRES_PASSWORD: brolly
+      POSTGRES_DB: brolly_b2c
+      # The schema relies on lower(email) uniqueness and en-GB-ish ordering;
+      # pinning the locale keeps index behaviour identical across machines.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5542:5432"
+    volumes:
+      - brolly_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brolly -d brolly_b2c"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: brolly_b2c_redis
+    restart: unless-stopped
+    # appendonly keeps the login throttle counters across a restart, which is
+    # the whole point of moving them out of process memory.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6479:6379"
+    volumes:
+      - brolly_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  brolly_pgdata:
+  brolly_redisdata:
