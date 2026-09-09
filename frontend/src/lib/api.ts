@@ -62,7 +62,10 @@ async function raw(path: string, init: RequestInit = {}): Promise<Response> {
     ...init,
     credentials: credentialsMode(),
     headers: {
-      ...(init.body ? { 'content-type': 'application/json' } : {}),
+      // FormData sets its own content-type, boundary and all. Overriding it
+      // with application/json makes the body unparseable at the other end.
+      ...(init.body && !(init.body instanceof FormData)
+        ? { 'content-type': 'application/json' } : {}),
       ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
       ...(init.headers ?? {}),
     },
@@ -90,9 +93,25 @@ export async function api<T = any>(path: string, init: RequestInit = {}): Promis
   return res.json() as Promise<T>
 }
 
+/**
+ * A link the browser can fetch, from the relative one the API returns.
+ * Same reasoning as apiBase(): same-origin on the web, absolute in the app.
+ */
+export const mediaUrl = (u: string) =>
+  !u || /^https?:[/][/]/.test(u) ? u : `${apiBase()}${u}`
+
+/** Multipart upload. The browser sets the multipart boundary itself. */
+export const upload = <T = any>(p: string, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api<T>(p, { method: 'POST', body: form })
+}
+
 export const get = <T = any>(p: string) => api<T>(p)
 export const post = <T = any>(p: string, body?: unknown) =>
   api<T>(p, { method: 'POST', ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+export const del = <T = any>(p: string) => api<T>(p, { method: 'DELETE' })
+
 export const patch = <T = any>(p: string, body: unknown) =>
   api<T>(p, { method: 'PATCH', body: JSON.stringify(body) })
 

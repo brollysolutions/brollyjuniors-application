@@ -7,6 +7,8 @@ import {
   duration, fmtAgo, fmtDate, fmtDateTime, useLoad, useSession,
 } from '@/components/ui'
 import { Blocks } from '@/components/blocks'
+import { ResourceLibrary } from '@/components/resources'
+import { PasswordCard } from '@/components/account'
 
 export default function TeacherPortal() {
   const { screen } = useSession()
@@ -20,6 +22,7 @@ export default function TeacherPortal() {
     case 'grading': return <Grading />
     case 'submission': return <SubmissionView />
     case 'recordings': return <Recordings />
+    case 'resources': return <ResourceLibrary />
     case 'profile': return <Profile />
     default: return <Overview />
   }
@@ -706,6 +709,9 @@ function Profile() {
             await client.patch('/me', { fullName: name }); toast('Saved'); await reload()
           }} />
         </div>
+        <PasswordCard />
+      </div>
+      <div className="grid g2" style={{ marginTop: 14 }}>
         <div className="card">
           <h3>My teaching</h3>
           <div className="sub" style={{ marginBottom: 12 }}>Right now</div>

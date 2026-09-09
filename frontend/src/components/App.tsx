@@ -6,11 +6,12 @@ import { FALLBACK_BRAND, ROLE_THEME } from '@/lib/types'
 import * as client from '@/lib/api'
 import { hideSplash, initNative, onBackButton } from '@/lib/native'
 import {
-  Action, Field, Glyph, SessionCtx, useDismiss, useLockBody, useMedia,
+  Glyph, SessionCtx, useDismiss, useLockBody, useMedia,
 } from '@/components/ui'
 import PublicSite from '@/components/public'
 import StudentPortal from '@/components/portals/student'
 import AdminPortal from '@/components/portals/admin'
+import { ChangePassword } from '@/components/account'
 import TeacherPortal from '@/components/portals/teacher'
 
 /**
@@ -181,7 +182,7 @@ const TAB_LABEL: Record<string, string> = {
   browse: 'Browse', live: 'Live', recordings: 'Videos', assignments: 'Tasks',
   grading: 'Grading', progress: 'Progress', certificates: 'Awards',
   profile: 'Profile', students: 'Students', teachers: 'Teachers',
-  content: 'Content', orders: 'Orders', audit: 'Activity',
+  content: 'Content', orders: 'Orders', audit: 'Activity', resources: 'Library',
 }
 const tabLabel = (n: NavItem) => TAB_LABEL[n.key] ?? n.label
 
@@ -405,11 +406,7 @@ function Notifications() {
 }
 
 function ChangePasswordBanner() {
-  const { toast, reload } = React.useContext(SessionCtx)
   const [open, setOpen] = useState(false)
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [err, setErr] = useState('')
 
   if (!open) {
     return (
@@ -426,40 +423,8 @@ function ChangePasswordBanner() {
   return (
     <div className="card" style={{ marginBottom: 18 }}>
       <h3>Choose a new password</h3>
-      <div className="sub" style={{ marginBottom: 12 }}>
-        At least 8 characters. A phrase you will remember beats symbols you will forget.
-      </div>
-      <div className="fieldpair">
-        <Field label="Current password">
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={current}
-            onChange={e => setCurrent(e.target.value)}
-          />
-        </Field>
-        <Field label="New password" error={err}>
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={next}
-            onChange={e => setNext(e.target.value)}
-          />
-        </Field>
-      </div>
-      <div className="row tight">
-        <Action label="Save" onClick={async () => {
-          setErr('')
-          try {
-            await client.post('/auth/change-password', {
-              currentPassword: current, newPassword: next,
-            })
-            toast('Password updated')
-            await client.restore()
-            await reload()
-            setOpen(false)
-          } catch (e: any) { setErr(e.message) }
-        }} />
+      <ChangePassword onDone={() => setOpen(false)} />
+      <div className="row tight" style={{ marginTop: 4 }}>
         <button className="btn ghost stack" onClick={() => setOpen(false)}>Later</button>
       </div>
     </div>

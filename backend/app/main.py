@@ -19,7 +19,7 @@ from .config import settings
 from .core import redis_client
 from .deps import assert_every_route_guarded
 from .errors import HttpError, http_code, problem_response
-from .routers import admin, auth, catalog, student, teacher
+from .routers import admin, auth, catalog, media, resources, student, teacher
 
 log = logging.getLogger("brolly")
 
@@ -115,6 +115,8 @@ app.include_router(catalog.router)
 app.include_router(student.router)
 app.include_router(admin.router)
 app.include_router(teacher.router)
+app.include_router(resources.router)
+app.include_router(media.router)
 
 
 @app.get("/health")

@@ -7,6 +7,8 @@ import {
   fmtAgo, fmtDate, fmtDateTime, duration, price, mmss, useLoad, useSession,
 } from '@/components/ui'
 import { Blocks } from '@/components/blocks'
+import { ResourceLibrary } from '@/components/resources'
+import { PasswordCard } from '@/components/account'
 import { runTests, loadPython } from '@/lib/python'
 
 export default function StudentPortal() {
@@ -22,6 +24,7 @@ export default function StudentPortal() {
     case 'browse': return <Browse />
     case 'live': return <LiveClasses />
     case 'recordings': return <Recordings />
+    case 'resources': return <ResourceLibrary />
     case 'recording': return <RecordingView />
     case 'assignments': return <Assignments />
     case 'assignment': return <AssignmentView />
@@ -1226,6 +1229,7 @@ function Profile() {
                   toast('Saved'); await reload(); q.reload()
                 }} />
               </div>
+              <div style={{ marginTop: 14 }}><PasswordCard /></div>
               <div>
                 <div className="card" style={{ marginBottom: 14 }}>
                   <h3>Parent or guardian</h3>

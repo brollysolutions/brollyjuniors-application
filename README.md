@@ -32,8 +32,8 @@ port was made from.
 ### In Docker (everything containerised)
 
 ```bash
-docker compose up -d --build              # postgres, redis, api, web
-docker compose run --rm api python scripts/seed.py   # once, on a fresh volume
+docker compose up -d --build              # postgres, redis, backend, frontend
+docker compose run --rm backend python scripts/seed.py   # once, on a fresh volume
 ```
 
 The api container applies any unapplied migrations on every boot, so only the

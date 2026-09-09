@@ -275,9 +275,20 @@ async def refresh(request: Request, response: Response, _=Depends(public_route))
     if access is None or access.status != "active":
         raise unauthorized()
 
-    if row["used_at"] or row["revoked_at"]:
-        # Already rotated, so this is a replay: assume theft and kill the whole
-        # family rather than just this token.
+    if row["revoked_at"] and not row["used_at"]:
+        # Revoked without ever being spent. That is a session somebody ended on
+        # purpose — a sign-out, a password change, an admin deactivating the
+        # account — and the device simply has not noticed yet. Treating it as
+        # theft accused the user of stealing from themselves, killed the family
+        # they had just re-secured, and buried the real signal in false alarms
+        # every time anyone changed their password on a second device.
+        _clear_cookie(response)
+        raise unauthorized("That session has ended. Sign in again.")
+
+    if row["used_at"]:
+        # Spent once already, so a copy of a token that was rotated away is
+        # being presented: assume theft and kill the whole family, not just
+        # this token.
         async with db.actor(user_id, db_role(access)) as c:
             await c.execute(
                 "UPDATE session SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL",
@@ -329,10 +340,30 @@ async def logout(request: Request, response: Response, _=Depends(public_route)):
 
 @router.post("/api/v1/auth/change-password")
 async def change_password(
-    body: ChangePasswordBody, actor: Actor = Depends(requires("me:read"))
+    body: ChangePasswordBody, request: Request, response: Response,
+    actor: Actor = Depends(requires("me:read")),
 ):
+    """
+    Change a password, and stay signed in here while every other device is
+    signed out.
+
+    Revoking the sessions is the point — a password change has to end any
+    session someone else might be holding. But revoking them and stopping there
+    also revoked the caller's own refresh token, and the next refresh then
+    looked exactly like a stolen token being replayed: the family was killed
+    and an `auth.refresh.reuse_detected` line was written accusing the user of
+    the theft they had just protected themselves from. So the old sessions go,
+    and this device is immediately issued a new one.
+    """
     if not body.newPassword or len(body.newPassword) < 8:
         raise bad_request("Use at least 8 characters. A short phrase you will remember is fine.")
+    if not body.currentPassword:
+        raise bad_request("Enter your current password.")
+    if body.newPassword == body.currentPassword:
+        raise bad_request("That is the password you already have. Choose a different one.")
+
+    ip = client_ip(request)
+    ua = request.headers.get("user-agent", "")
 
     async with actor.db() as c:
         row = await c.one(
@@ -343,14 +374,19 @@ async def change_password(
         if not verify_password(body.currentPassword, row["password_hash"]):
             raise bad_request("Your current password is not right.")
 
+        # perm_version + 1 is what makes every access token minted before this
+        # moment stop working, on every device, without waiting for it to expire.
         await c.execute(
             """UPDATE app_user
                   SET password_hash = $1, must_change_pw = false, perm_version = perm_version + 1
                 WHERE id = $2""",
             hash_password(body.newPassword), actor.user_id,
         )
-        await c.execute(
-            "UPDATE session SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
+        signed_out = await c.value(
+            """WITH revoked AS (
+                 UPDATE session SET revoked_at = now()
+                  WHERE user_id = $1 AND revoked_at IS NULL RETURNING 1)
+               SELECT count(*)::int FROM revoked""",
             actor.user_id,
         )
         await actor.log_audit(c, AuditEntry(
@@ -358,8 +394,28 @@ async def change_password(
             summary=f'{row["full_name"]} changed their password',
         ))
 
+    # Read past the cache, or the token below would be signed with the
+    # perm_version this request just superseded and refused on its first use.
     await invalidate_access(actor.user_id)
-    return {"ok": True, "reauth": True}
+    access = await load_access(actor.user_id)
+    if access is None:
+        raise unauthorized()
+
+    async with db.actor(actor.user_id, db_role(access)) as c:
+        session_id, refresh_token = await _issue_session(
+            c, actor.user_id, access.role != "STUDENT", ip, ua
+        )
+    token = sign_access_token(AccessClaims(
+        sub=actor.user_id, role=access.role, sid=session_id, pv=access.perm_version))
+    _set_cookie(response, refresh_token)
+
+    return {
+        "ok": True,
+        "accessToken": token,
+        # The sessions that existed a moment ago, this one included. What the
+        # screen says is "signed out everywhere else", so do not count this one.
+        "signedOutElsewhere": max(0, (signed_out or 0) - 1),
+    }
 
 
 @router.get("/api/v1/auth/sessions")

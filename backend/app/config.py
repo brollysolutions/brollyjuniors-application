@@ -55,9 +55,21 @@ class Settings(BaseSettings):
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
     # --- media -------------------------------------------------------------
-    cdn_base: str = "https://cdn.brollyjuniors.test"
+    # Where uploaded bytes actually live. Under .data, which compose already
+    # mounts as a named volume, so files survive a rebuild for the same reason
+    # the signing keys do. In production this is the one thing to point at a
+    # bucket instead — see MediaStore in app/media.py.
+    media_root: Path = BACKEND_ROOT / ".data" / "media"
+    # Prefix for a usable media link. Left relative on purpose: the browser
+    # reaches this API through the Next proxy on the same origin, and the
+    # mobile app prefixes it with its configured API base (lib/platform.ts).
+    # Point it at a CDN host once there is one.
+    cdn_base: str = ""
     media_signing_key: str = "dev-only-media-key-change-me"
     media_url_ttl_seconds: int = 900
+    # 25 MB. A syllabus or a set of notes is well under this; a lecture video
+    # is not, and belongs in object storage rather than an upload form.
+    media_max_upload_bytes: int = 25 * 1024 * 1024
 
     # --- payments ----------------------------------------------------------
     payment_provider: str = "mock"

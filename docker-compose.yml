@@ -1,17 +1,19 @@
 # Brolly Juniors B2C — the whole stack.
 #
-#   docker compose up -d --build          everything: db, cache, api, web
+#   docker compose up -d --build          everything: db, cache, backend, frontend
 #   docker compose up -d postgres redis   data services only (host-run apps)
 #
-# Then open http://localhost:3000. Only the web port needs to be open; it
-# proxies /api/* to the api service over the compose network, so the browser
+# Then open http://localhost:3000. Only the frontend port needs to be open; it
+# proxies /api/* to the backend service over the compose network, so the browser
 # still sees a single origin and the refresh cookie stays HttpOnly.
 #
 # A fresh database has schema but no demo users. Seed it once:
-#   docker compose run --rm api python scripts/seed.py
+#   docker compose run --rm backend python scripts/seed.py
 #
-# Published host ports are overridable, because this machine also has an older
-# clone of this repo whose stack binds 5542/6479. Either stop that one, or:
+# Every published host port is overridable through a variable named after its
+# service: FRONTEND_PORT, BACKEND_PORT, POSTGRES_PORT, REDIS_PORT. That matters
+# here because this machine also has an older clone of this repo whose stack
+# binds 5542/6479. Either stop that one, or:
 #   POSTGRES_PORT=5543 REDIS_PORT=6480 docker compose up -d
 name: brollyjuniors-b2c
 
@@ -27,12 +29,17 @@ services:
       # The schema relies on lower(email) uniqueness and en-GB-ish ordering;
       # pinning the locale keeps index behaviour identical across machines.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    # Postgres is told to listen on 5542 inside the container as well, so this
+    # service is one number everywhere: the published port, the port in
+    # DATABASE_URL over the compose network, and the port in
+    # backend/.env.example for a host-run API all read 5542.
+    command: ["-p", "5542"]
     ports:
-      - "${POSTGRES_PORT:-5542}:5432"
+      - "${POSTGRES_PORT:-5542}:5542"
     volumes:
       - brolly_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U brolly -d brolly_b2c"]
+      test: ["CMD-SHELL", "pg_isready -U brolly -d brolly_b2c -p 5542"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -42,29 +49,32 @@ services:
     restart: unless-stopped
     # appendonly keeps the login throttle counters across a restart, which is
     # the whole point of moving them out of process memory.
-    command: ["redis-server", "--appendonly", "yes"]
+    # --port 6479 for the same reason as Postgres: one number for this
+    # service, host side and container side.
+    command: ["redis-server", "--appendonly", "yes", "--port", "6479"]
     ports:
-      - "${REDIS_PORT:-6479}:6379"
+      - "${REDIS_PORT:-6479}:6479"
     volumes:
       - brolly_redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-p", "6479", "ping"]
       interval: 5s
       timeout: 5s
       retries: 20
 
   # --- application ---------------------------------------------------------
-  api:
+  # Named for the directory each one builds from: ./backend and ./frontend.
+  backend:
     build:
       context: ./backend
     restart: unless-stopped
     environment:
-      # Service names, not localhost: inside the network Postgres and Redis
-      # answer on their container ports, not the published host ones.
-      DATABASE_URL: postgresql://brolly:brolly@postgres:5432/brolly_b2c
-      REDIS_URL: redis://redis:6379/0
+      # Service names, not localhost — but the same port numbers as the host
+      # mapping, because both servers were told to listen on those ports.
+      DATABASE_URL: postgresql://brolly:brolly@postgres:5542/brolly_b2c
+      REDIS_URL: redis://redis:6479/0
       # The host default of 127.0.0.1 would only be reachable from inside the
-      # container itself, so the web service could never call it.
+      # container itself, so the frontend service could never call it.
       HOST: 0.0.0.0
       PORT: "8000"
       WEB_ORIGIN: http://localhost:3000
@@ -79,7 +89,7 @@ services:
       # every restart mints new ones and signs everybody out.
       - brolly_apikeys:/app/.data
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,17 +104,17 @@ services:
       retries: 10
       start_period: 20s
 
-  web:
+  frontend:
     build:
       context: ./frontend
       args:
         # Baked into routes-manifest.json at build time — see frontend/Dockerfile.
-        API_ORIGIN: http://api:8000
+        API_ORIGIN: http://backend:8000
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
-      api:
+      backend:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]

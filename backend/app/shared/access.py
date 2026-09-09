@@ -70,6 +70,13 @@ PERMISSIONS: list[PermDef] = [
     {"key": "media:delete", "description": "Remove media", "feature": "content_hub"},
     {"key": "material:manage", "description": "Manage learning materials", "feature": "materials"},
 
+    # --- shared resource library -------------------------------------------
+    # Deliberately ungated by any feature and granted to every role: the whole
+    # point of the shelf is that whatever Brolly Admin puts on it reaches every
+    # teacher and student without an enrolment or a switch to turn on.
+    {"key": "resource:read", "description": "Read the shared resource library"},
+    {"key": "resource:manage", "description": "Add and remove shared resources"},
+
     # --- live and recorded -------------------------------------------------
     {"key": "live:read", "description": "See live sessions", "feature": "live_classes"},
     {"key": "live:manage", "description": "Schedule and edit live sessions", "feature": "live_classes"},
@@ -125,6 +132,7 @@ ROLES: dict[str, RoleDef] = {
             "course:price", "course:assign_teacher",
             "content:read", "content:create", "content:update", "content:review", "content:publish",
             "media:upload", "media:delete", "material:manage",
+            "resource:read", "resource:manage",
             "live:read", "live:manage", "live:attendance",
             "recording:read", "recording:manage",
             "enrollment:read", "enrollment:create",
@@ -140,7 +148,7 @@ ROLES: dict[str, RoleDef] = {
         "permissions": [
             "me:read",
             "user:read",
-            "course:read", "content:read",
+            "course:read", "content:read", "resource:read",
             "live:read", "live:host", "live:attendance",
             "recording:read",
             "enrollment:read",
@@ -155,7 +163,7 @@ ROLES: dict[str, RoleDef] = {
         "level": 10,
         "permissions": [
             "me:read",
-            "course:read", "content:read",
+            "course:read", "content:read", "resource:read",
             "live:read", "live:attend",
             "recording:read",
             "enrollment:read",

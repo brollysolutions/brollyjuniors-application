@@ -24,7 +24,7 @@ COPY . .
 # .next/routes-manifest.json, so the API address is baked into the image here
 # — setting API_ORIGIN only at runtime would silently keep the default.
 # Rebuild the image to point it somewhere else.
-ARG API_ORIGIN=http://api:8000
+ARG API_ORIGIN=http://backend:8000
 ENV API_ORIGIN=$API_ORIGIN
 
 ENV NEXT_TELEMETRY_DISABLED=1

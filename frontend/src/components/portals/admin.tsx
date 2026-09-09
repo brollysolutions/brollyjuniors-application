@@ -7,12 +7,15 @@ import {
   fmtAgo, fmtDate, fmtDateTime, price, useLoad, useSession,
 } from '@/components/ui'
 import { Blocks } from '@/components/blocks'
+import { AdminResources } from '@/components/resources'
+import { PasswordCard } from '@/components/account'
 
 export default function AdminPortal() {
   const { screen } = useSession()
   switch (screen) {
     case 'courses': return <Courses />
     case 'content': return <ContentHub />
+    case 'resources': return <AdminResources />
     case 'contentItem': return <ContentEditor />
     case 'teachers': return <Teachers />
     case 'students': return <Students />
@@ -270,6 +273,22 @@ function ContentHub() {
         return (
           <>
             <Head title="Content Hub" sub="The single source of truth for everything students read" />
+
+            <div className="card" style={{ marginBottom: 18 }}>
+              <div className="row" style={{ alignItems: 'flex-start' }}>
+                <div style={{ flex: '1 1 320px' }}>
+                  <h3 style={{ marginTop: 0 }}>Shared library</h3>
+                  <div className="sub">
+                    Notes, a syllabus, handouts — anything every teacher and student should have.
+                    Nothing here is tied to a course or an enrolment: publish it and it appears on
+                    everyone&apos;s Library screen.
+                  </div>
+                </div>
+                <button className="btn gold stack" onClick={() => go('resources')}>
+                  Open the shared library
+                </button>
+              </div>
+            </div>
             <Note tone="teal">
               <strong>Publishing here does not deploy anything.</strong> A new version is written, the pointer
               moves, and the next request from any enrolled student returns the new text. Rolling back is the
@@ -799,6 +818,9 @@ function Profile() {
             await client.patch('/me', { fullName: name }); toast('Saved'); await reload()
           }} />
         </div>
+        <PasswordCard />
+      </div>
+      <div className="grid g2" style={{ marginTop: 14 }}>
         <div className="card">
           <h3>Brand configuration</h3>
           <div className="sub" style={{ marginBottom: 12 }}>
