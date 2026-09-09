@@ -1,13 +1,28 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Bootstrap } from '@/lib/types'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Bootstrap, NavItem } from '@/lib/types'
 import { FALLBACK_BRAND, ROLE_THEME } from '@/lib/types'
 import * as client from '@/lib/api'
-import { Action, Field, SessionCtx } from '@/components/ui'
+import { hideSplash, initNative, onBackButton } from '@/lib/native'
+import {
+  Action, Field, Glyph, SessionCtx, useDismiss, useLockBody, useMedia,
+} from '@/components/ui'
 import PublicSite from '@/components/public'
 import StudentPortal from '@/components/portals/student'
-import NotPorted from '@/components/portals/not-ported'
+import AdminPortal from '@/components/portals/admin'
+import TeacherPortal from '@/components/portals/teacher'
+
+/**
+ * One position in the app, as something that can be put on a stack.
+ *
+ * Screens are state, not URLs, so the WebView's own history is empty and
+ * Android's back button would leave the app from any screen. This is the
+ * history that button walks instead.
+ */
+type Spot =
+  | { kind: 'portal'; screen: string; param: string | null }
+  | { kind: 'public'; name: string; param: string | null }
 
 export default function App() {
   const [me, setMe] = useState<Bootstrap | null>(null)
@@ -19,6 +34,12 @@ export default function App() {
   const [publicScreen, setPublicScreen] = useState<{ name: string; param: string | null }>(
     { name: 'home', param: null })
 
+  // Where back goes, oldest first, and a mirror of where we are now. Refs
+  // rather than state: the back handler is registered once and must not see a
+  // position captured at mount.
+  const back = useRef<Spot[]>([])
+  const here = useRef<Spot>({ kind: 'public', name: 'home', param: null })
+
   const loadMe = useCallback(async () => {
     const b = await client.get<Bootstrap>('/me/bootstrap')
     setMe(b)
@@ -27,11 +48,30 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    (async () => {
+    here.current = me
+      ? { kind: 'portal', screen, param }
+      : { kind: 'public', name: publicScreen.name, param: publicScreen.param }
+  }, [me, screen, param, publicScreen])
+
+  useEffect(() => onBackButton(() => {
+    const prev = back.current.pop()
+    if (!prev) return false          // root screen: the shell backgrounds the app
+    if (prev.kind === 'portal') { setScreen(prev.screen); setParam(prev.param) }
+    else setPublicScreen({ name: prev.name, param: prev.param })
+    window.scrollTo(0, 0)
+    return true
+  }), [])
+
+  useEffect(() => {
+    void initNative()
+    ;(async () => {
       if (await client.restore()) {
         try { await loadMe() } catch { /* session no longer valid */ }
       }
       setBooting(false)
+      // Configured launchAutoHide: false, so the splash covers the session
+      // restore above and the first painted frame is the screen we settled on.
+      void hideSplash()
     })()
   }, [loadMe])
 
@@ -42,14 +82,31 @@ export default function App() {
   }, [])
 
   const go = useCallback((s: string, p: string | null = null) => {
+    const at = here.current
+    // Re-tapping the active nav item is not a move, so it is not history.
+    if (at.kind === 'portal' && at.screen === s && at.param === p) return
+    back.current.push(at)
     setScreen(s); setParam(p); window.scrollTo(0, 0)
   }, [])
 
   const signOut = useCallback(async () => {
     await client.logout()
+    // Back must not walk from the shop into a portal that no longer has a session.
+    back.current = []
     setMe(null); setScreen(''); setParam(null)
     setPublicScreen({ name: 'home', param: null })
   }, [])
+
+  const reload = useCallback(async () => { await loadMe() }, [loadMe])
+
+  const navigatePublic = useCallback((name: string, p: string | null = null) => {
+    const at = here.current
+    if (at.kind === 'public' && at.name === name && at.param === p) return
+    back.current.push(at)
+    setPublicScreen({ name, param: p }); window.scrollTo(0, 0)
+  }, [])
+
+  const onSignedIn = useCallback(async () => { back.current = []; await loadMe() }, [loadMe])
 
   // Brand tokens come from config, not from a component. One brand today; the
   // indirection is what makes a second one a data change rather than a rewrite.
@@ -65,60 +122,123 @@ export default function App() {
       : `${brand.name} — ${brand.tagline}`
   }, [me])
 
+  // A fresh object here re-renders every screen on every keystroke that lands
+  // in App — a toast, for one. Memoised on the values that actually change.
+  const session = useMemo(
+    () => (me ? { me, reload, signOut, toast, go, screen, param } : null),
+    [me, reload, signOut, toast, go, screen, param],
+  )
+
+  const toastTray = toasts.map(t => (
+    <div key={t.id} className={'toast' + (t.bad ? ' bad' : '')} role="status" aria-live="polite">
+      {t.msg}
+    </div>
+  ))
+
   if (booting) {
     return (
-      <div className="loading" style={{ paddingTop: 140 }}>
+      <div className="loading" style={{ paddingTop: 140 }} role="status">
         <span className="spinner dark" /> Starting…
       </div>
     )
   }
 
-  if (!me) {
+  if (!session) {
     return (
       <>
         <PublicSite
           screen={publicScreen}
-          navigate={(name: string, p: string | null = null) => {
-            setPublicScreen({ name, param: p }); window.scrollTo(0, 0)
-          }}
-          onSignedIn={loadMe}
+          navigate={navigatePublic}
+          onSignedIn={onSignedIn}
           toast={toast}
         />
-        {toasts.map(t => <div key={t.id} className={'toast' + (t.bad ? ' bad' : '')}>{t.msg}</div>)}
+        {toastTray}
       </>
     )
   }
 
   return (
-    <SessionCtx.Provider
-      value={{ me, reload: async () => { await loadMe() }, signOut, toast, go, screen, param }}
-    >
+    <SessionCtx.Provider value={session}>
       <Shell />
-      {toasts.map(t => <div key={t.id} className={'toast' + (t.bad ? ' bad' : '')}>{t.msg}</div>)}
+      {toastTray}
     </SessionCtx.Provider>
   )
 }
 
 // ---------------------------------------------------------------------------
+// Shell
+// ---------------------------------------------------------------------------
+
+/**
+ * Bottom-bar labels.
+ *
+ * "Browse courses" is a fine sidebar label and a terrible tab label — a tab is
+ * roughly 70px wide on a 360px phone. Falls back to the server's label, so a
+ * new nav entry appears correctly without a frontend change.
+ */
+const TAB_LABEL: Record<string, string> = {
+  home: 'Home', overview: 'Home', mycourses: 'Courses', courses: 'Courses',
+  browse: 'Browse', live: 'Live', recordings: 'Videos', assignments: 'Tasks',
+  grading: 'Grading', progress: 'Progress', certificates: 'Awards',
+  profile: 'Profile', students: 'Students', teachers: 'Teachers',
+  content: 'Content', orders: 'Orders', audit: 'Activity',
+}
+const tabLabel = (n: NavItem) => TAB_LABEL[n.key] ?? n.label
+
+/** Four destinations plus More. Five is the most a thumb can aim at reliably. */
+const TABS = 4
 
 function Shell() {
   const { me, screen, go, signOut } = React.useContext(SessionCtx)
   const theme = ROLE_THEME[me.role]
 
+  const tabletUp = useMedia('(min-width: 768px)', true)
+  const desktop = useMedia('(min-width: 1024px)', true)
+
+  // Phone: an off-canvas drawer. Tablet: a rail that expands. Desktop: open.
+  const [drawer, setDrawer] = useState(false)
+  const [expanded, setExpanded] = useState(desktop)
+
+  useEffect(() => { setExpanded(desktop) }, [desktop])
+  // Growing past the drawer breakpoint with it open would leave the body locked.
+  useEffect(() => { if (tabletUp) setDrawer(false) }, [tabletUp])
+  useLockBody(drawer && !tabletUp)
+
+  useEffect(() => {
+    if (!drawer) return
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawer(false) }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [drawer])
+
   const navKeys = useMemo(() => new Set(me.nav.map(n => n.key)), [me.nav])
   const active = navKeys.has(screen) ? screen : me.nav[0]?.key
 
-  const portal = me.role === 'STUDENT'
-    ? <StudentPortal />
-    : <NotPorted role={me.role === 'BROLLY_ADMIN' ? 'admin' : 'teacher'} />
+  const visit = useCallback((key: string) => { setDrawer(false); go(key) }, [go])
+
+  const tabs = me.nav.length <= TABS + 1 ? me.nav : me.nav.slice(0, TABS)
+  const hasMore = tabs.length < me.nav.length
+  const moreActive = hasMore && !tabs.some(n => n.key === active)
+
+  // Every role has a portal now, so this is a total mapping rather than a
+  // default with a placeholder behind it.
+  const portal = me.role === 'BROLLY_ADMIN' ? <AdminPortal />
+    : me.role === 'TEACHER' ? <TeacherPortal />
+      : <StudentPortal />
 
   return (
     <>
       <div
         className="shell"
+        data-drawer={drawer ? 'open' : 'closed'}
+        data-side={expanded ? 'full' : 'rail'}
         style={{ ['--role' as any]: theme.accent, ['--role-soft' as any]: theme.accentSoft }}
       >
-        <aside className="side">
+        <a className="skip" href="#main">Skip to content</a>
+
+        {/* inert rather than aria-hidden: a closed drawer must be out of the
+            tab order too, not merely unannounced. */}
+        <aside className="side" id="app-nav" inert={!tabletUp && !drawer}>
           <div className="brand">
             <div className="mark">{me.brand.logoText}</div>
             <div className="nm">
@@ -126,31 +246,65 @@ function Shell() {
               <small>{theme.label}</small>
             </div>
           </div>
-          <nav>
+          <nav aria-label="Sections">
             {me.nav.map(n => (
-              <button key={n.key} className={active === n.key ? 'on' : ''} onClick={() => go(n.key)}>
-                <span className="ic">{n.icon}</span>{n.label}
-                {n.badge ? <span className="badge">{n.badge}</span> : null}
+              <button
+                key={n.key}
+                className={active === n.key ? 'on' : ''}
+                aria-current={active === n.key ? 'page' : undefined}
+                onClick={() => visit(n.key)}
+              >
+                <Glyph className="ic">{n.icon}</Glyph>
+                <span className="lb">{n.label}</span>
+                <span className="lb-tight" aria-hidden="true">{tabLabel(n)}</span>
+                {n.badge ? <span className="badge" aria-label={`${n.badge} waiting`}>{n.badge}</span> : null}
               </button>
             ))}
           </nav>
           <div className="sidefoot">
             <div className="who">{me.user.fullName}</div>
-            {me.user.email}
-            <div style={{ marginTop: 8 }}>
-              <button className="btn ghost sm" onClick={signOut}>Sign out</button>
-            </div>
+            <div className="meta">{me.user.email}</div>
+            <button className="btn ghost sm" onClick={signOut}>Sign out</button>
           </div>
         </aside>
 
+        <button
+          className="scrim"
+          aria-label="Close the menu"
+          tabIndex={drawer ? 0 : -1}
+          onClick={() => setDrawer(false)}
+        />
+
         <div className="main">
-          <div className="topbar">
+          <header className="topbar">
+            {tabletUp ? (
+              <button
+                className="iconbtn sidetoggle"
+                aria-label={expanded ? 'Collapse the sidebar' : 'Expand the sidebar'}
+                aria-expanded={expanded}
+                aria-controls="app-nav"
+                onClick={() => setExpanded(v => !v)}
+              >
+                <Glyph>{expanded ? '⟨' : '⟩'}</Glyph>
+              </button>
+            ) : (
+              <button
+                className="iconbtn"
+                aria-label="Open the menu"
+                aria-expanded={drawer}
+                aria-controls="app-nav"
+                onClick={() => setDrawer(true)}
+              >
+                <Glyph>☰</Glyph>
+              </button>
+            )}
             <span className="crumb">{theme.label}</span>
             <span className="spacer" />
             <Notifications />
-            <span className="chip">{me.user.fullName}</span>
-          </div>
-          <div className="content">
+            <span className="chip who">{me.user.fullName}</span>
+          </header>
+
+          <main className="content" id="main">
             {/* Stated on every screen, not buried in a policy page. */}
             <div className="boundary">
               <span className="eye">Can see</span>
@@ -160,17 +314,36 @@ function Shell() {
             </div>
             {me.user.mustChangePassword ? <ChangePasswordBanner /> : null}
             {portal}
-          </div>
+          </main>
         </div>
       </div>
 
-      <div className="mobnav" style={{ ['--role' as any]: theme.accent }}>
-        {me.nav.map(n => (
-          <button key={n.key} className={active === n.key ? 'on' : ''} onClick={() => go(n.key)}>
-            {n.label}
+      <nav className="mobnav" aria-label="Main" style={{ ['--role' as any]: theme.accent, ['--role-soft' as any]: theme.accentSoft }}>
+        {tabs.map(n => (
+          <button
+            key={n.key}
+            className={active === n.key ? 'on' : ''}
+            aria-current={active === n.key ? 'page' : undefined}
+            onClick={() => visit(n.key)}
+          >
+            <Glyph className="ic">{n.icon}</Glyph>
+            <span className="lb">{tabLabel(n)}</span>
+            {n.badge ? <span className="badge" aria-label={`${n.badge} waiting`}>{n.badge}</span> : null}
           </button>
         ))}
-      </div>
+        {hasMore ? (
+          <button
+            className={moreActive ? 'on' : ''}
+            aria-label="More sections"
+            aria-expanded={drawer}
+            aria-controls="app-nav"
+            onClick={() => setDrawer(true)}
+          >
+            <Glyph className="ic">☰</Glyph>
+            <span className="lb">More</span>
+          </button>
+        ) : null}
+      </nav>
     </>
   )
 }
@@ -180,15 +353,20 @@ function Notifications() {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<any[]>([])
 
+  const close = useCallback(() => setOpen(false), [])
+  const box = useDismiss(open, close)
+
   useEffect(() => {
     client.get('/me/notifications').then(r => setItems(r.notifications ?? [])).catch(() => {})
   }, [])
 
   const unread = items.filter(n => !n.read_at).length
   return (
-    <>
+    <div ref={box}>
       <button
         className={'chip act' + (unread ? ' warn' : '')}
+        aria-expanded={open}
+        aria-haspopup="menu"
         onClick={async () => {
           setOpen(o => !o)
           if (!open && unread) {
@@ -200,33 +378,29 @@ function Notifications() {
         {unread ? `${unread} new` : 'Notifications'}
       </button>
       {open ? (
-        <div style={{
-          position: 'absolute', right: 24, top: 56, width: 'min(380px, 90vw)', zIndex: 40,
-          background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14,
-          boxShadow: '0 12px 40px rgba(30,41,59,.18)', maxHeight: 400, overflowY: 'auto', padding: 8,
-        }}>
+        <div className="pop" role="menu" aria-label="Notifications">
           {items.length === 0
             ? <div className="loading" style={{ padding: 24 }}>Nothing yet.</div>
             : items.map(n => (
               <button
                 key={n.id}
                 className="unit"
-                style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                role="menuitem"
                 onClick={() => {
                   setOpen(false)
                   if (n.link_screen) go(n.link_screen, n.link_param || null)
                 }}
               >
-                <div className="num">{n.kind === 'grade' ? '✓' : n.kind === 'live' ? '◉' : '★'}</div>
+                <Glyph className="num">{n.kind === 'grade' ? '✓' : n.kind === 'live' ? '◉' : '★'}</Glyph>
                 <div className="body">
-                  <div className="t" style={{ fontSize: 14 }}>{n.title}</div>
+                  <div className="t small">{n.title}</div>
                   <div className="m">{n.body}</div>
                 </div>
               </button>
             ))}
         </div>
       ) : null}
-    </>
+    </div>
   )
 }
 
@@ -239,13 +413,13 @@ function ChangePasswordBanner() {
 
   if (!open) {
     return (
-      <div className="note" style={{
-        marginTop: 0, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12,
-      }}>
-        <div style={{ flex: 1 }}>
-          <strong>Change your password.</strong> You are still using the one Brolly gave you.
+      <div className="note" style={{ marginTop: 0, marginBottom: 18 }}>
+        <div className="row">
+          <div style={{ flex: '1 1 220px' }}>
+            <strong>Change your password.</strong> You are still using the one Brolly gave you.
+          </div>
+          <button className="btn gold sm stack" onClick={() => setOpen(true)}>Change it now</button>
         </div>
-        <button className="btn gold sm" onClick={() => setOpen(true)}>Change it now</button>
       </div>
     )
   }
@@ -255,28 +429,38 @@ function ChangePasswordBanner() {
       <div className="sub" style={{ marginBottom: 12 }}>
         At least 8 characters. A phrase you will remember beats symbols you will forget.
       </div>
-      <div className="grid g3">
+      <div className="fieldpair">
         <Field label="Current password">
-          <input type="password" value={current} onChange={e => setCurrent(e.target.value)} />
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={e => setCurrent(e.target.value)}
+          />
         </Field>
         <Field label="New password" error={err}>
-          <input type="password" value={next} onChange={e => setNext(e.target.value)} />
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={next}
+            onChange={e => setNext(e.target.value)}
+          />
         </Field>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, paddingBottom: 14 }}>
-          <Action label="Save" onClick={async () => {
-            setErr('')
-            try {
-              await client.post('/auth/change-password', {
-                currentPassword: current, newPassword: next,
-              })
-              toast('Password updated')
-              await client.restore()
-              await reload()
-              setOpen(false)
-            } catch (e: any) { setErr(e.message) }
-          }} />
-          <button className="btn ghost" onClick={() => setOpen(false)}>Later</button>
-        </div>
+      </div>
+      <div className="row tight">
+        <Action label="Save" onClick={async () => {
+          setErr('')
+          try {
+            await client.post('/auth/change-password', {
+              currentPassword: current, newPassword: next,
+            })
+            toast('Password updated')
+            await client.restore()
+            await reload()
+            setOpen(false)
+          } catch (e: any) { setErr(e.message) }
+        }} />
+        <button className="btn ghost stack" onClick={() => setOpen(false)}>Later</button>
       </div>
     </div>
   )

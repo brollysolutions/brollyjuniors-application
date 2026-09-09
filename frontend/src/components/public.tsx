@@ -9,10 +9,10 @@
  * renders whatever the API is willing to hand a stranger.
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { FALLBACK_BRAND as BROLLY_JUNIORS, formatPrice } from '@/lib/types'
 import * as client from '@/lib/api'
-import { Action, Field, Loading, Note, Pill, useLoad, Page } from '@/components/ui'
+import { Action, Field, Glyph, Note, useLoad, Page } from '@/components/ui'
 
 type Nav = (name: string, param?: string | null) => void
 
@@ -23,30 +23,61 @@ export default function PublicSite({ screen, navigate, onSignedIn, toast }: {
   toast: (m: string, bad?: boolean) => void
 }) {
   const brand = BROLLY_JUNIORS
+  const [menu, setMenu] = useState(false)
+
+  // One handler for both the bar and the phone menu, so a tap always closes
+  // the menu behind it and the next screen starts at the top.
+  const goto: Nav = (name, param = null) => { setMenu(false); navigate(name, param) }
+
   return (
     <div className="site">
+      <a className="skip" href="#main">Skip to content</a>
+
       <header className="sitebar">
         <div className="sitebar-in">
-          <button className="brand" style={{ padding: 0, background: 'none', border: 0, cursor: 'pointer' }}
-            onClick={() => navigate('home')}>
+          <button className="brand" onClick={() => goto('home')} aria-label={`${brand.name} home`}>
             <div className="mark">{brand.logoText}</div>
             <div className="nm"><span>{brand.name}</span><small>Python &amp; AI</small></div>
           </button>
-          <button className="link" onClick={() => navigate('courses')}>Courses</button>
-          <button className="link" onClick={() => navigate('verify')}>Verify a certificate</button>
-          <span className="spacer" />
-          <button className="btn ghost sm" onClick={() => navigate('signin')}>Sign in</button>
-          <button className="btn gold sm" onClick={() => navigate('signup')}>Create an account</button>
+
+          <div className="sitelinks">
+            <button className="link" onClick={() => goto('courses')}>Courses</button>
+            <button className="link" onClick={() => goto('verify')}>Verify a certificate</button>
+            <span className="spacer" />
+            <button className="btn ghost sm" onClick={() => goto('signin')}>Sign in</button>
+            <button className="btn gold sm" onClick={() => goto('signup')}>Create an account</button>
+          </div>
+
+          <button
+            className="iconbtn"
+            aria-label={menu ? 'Close the menu' : 'Open the menu'}
+            aria-expanded={menu}
+            aria-controls="site-menu"
+            onClick={() => setMenu(m => !m)}
+          >
+            <Glyph>{menu ? '✕' : '☰'}</Glyph>
+          </button>
         </div>
+
+        {menu ? (
+          <nav className="sitemenu" id="site-menu" aria-label="Site">
+            <button className="link" onClick={() => goto('courses')}>Courses</button>
+            <button className="link" onClick={() => goto('verify')}>Verify a certificate</button>
+            <button className="btn gold" onClick={() => goto('signup')}>Create an account</button>
+            <button className="btn ghost" onClick={() => goto('signin')}>Sign in</button>
+          </nav>
+        ) : null}
       </header>
 
-      {screen.name === 'courses' ? <Catalogue navigate={navigate} />
-        : screen.name === 'course' ? <CoursePage slug={screen.param!} navigate={navigate} />
-        : screen.name === 'signin' ? <SignIn navigate={navigate} onSignedIn={onSignedIn} />
-        : screen.name === 'signup' ? <SignUp navigate={navigate} onSignedIn={onSignedIn} />
-        : screen.name === 'checkout' ? <Checkout slug={screen.param!} navigate={navigate} onSignedIn={onSignedIn} toast={toast} />
-        : screen.name === 'verify' ? <VerifyCertificate />
-        : <Home navigate={navigate} />}
+      <main id="main">
+        {screen.name === 'courses' ? <Catalogue navigate={goto} />
+          : screen.name === 'course' ? <CoursePage slug={screen.param!} navigate={goto} />
+          : screen.name === 'signin' ? <SignIn navigate={goto} onSignedIn={onSignedIn} />
+          : screen.name === 'signup' ? <SignUp navigate={goto} onSignedIn={onSignedIn} />
+          : screen.name === 'checkout' ? <Checkout slug={screen.param!} navigate={goto} onSignedIn={onSignedIn} toast={toast} />
+          : screen.name === 'verify' ? <VerifyCertificate />
+          : <Home navigate={goto} />}
+      </main>
 
       <footer className="sitefoot">
         <div className="sitefoot-in">
@@ -127,7 +158,7 @@ function CourseCard({ course, onOpen }: { course: any; onOpen: () => void }) {
         <div className="price">
           {formatPrice(course.price_minor)}
           {course.learners > 0
-            ? <span className="meta" style={{ fontWeight: 400, marginLeft: 8 }}>{course.learners} learners</span>
+            ? <span className="meta" style={{ fontWeight: 400 }}>{course.learners} learners</span>
             : null}
         </div>
       </div>
@@ -138,13 +169,15 @@ function CourseCard({ course, onOpen }: { course: any; onOpen: () => void }) {
 function Catalogue({ navigate }: { navigate: Nav }) {
   const q = useLoad(() => client.get('/public/courses'))
   return (
-    <div className="wrap" style={{ paddingTop: 34 }}>
-      <div className="kicker">Courses</div>
-      <h1 style={{ fontSize: 32, letterSpacing: '-.03em' }}>Everything we teach</h1>
-      <p className="muted" style={{ maxWidth: '58ch', marginTop: 10, marginBottom: 26 }}>
-        Two courses today. Both include live classes, recordings, a textbook, exercises and a
-        certificate when you finish.
-      </p>
+    <div className="wrap pad">
+      <div className="pagehead">
+        <div className="kicker">Courses</div>
+        <h1>Everything we teach</h1>
+        <p>
+          Two courses today. Both include live classes, recordings, a textbook, exercises and a
+          certificate when you finish.
+        </p>
+      </div>
       <Page q={q}>
         {(d: any) => (
           <div className="grid g2">
@@ -163,28 +196,34 @@ function CoursePage({ slug, navigate }: { slug: string; navigate: Nav }) {
   const [openModule, setOpenModule] = useState<string | null>(null)
 
   return (
-    <div className="wrap" style={{ paddingTop: 30 }}>
+    <div className="wrap pad">
       <Page q={q} what="Loading the course">
         {(d: any) => (
           <>
-            <button className="link" style={{ marginBottom: 14 }} onClick={() => navigate('courses')}>
-              ← All courses
+            <button className="backlink" onClick={() => navigate('courses')}>
+              <Glyph>←</Glyph> All courses
             </button>
-            <div className="split2">
-              <div>
-                <span className="tchip mat">{d.course.subject}</span>
-                <h1 style={{ fontSize: 34, letterSpacing: '-.03em', marginTop: 10 }}>{d.course.title}</h1>
-                <p className="lead muted" style={{ fontSize: 16, marginTop: 10 }}>{d.course.subtitle}</p>
-                <div className="row tight" style={{ marginTop: 14 }}>
-                  <span className="chip">{d.course.level}</span>
-                  <span className="chip">Ages {d.course.age_range}</span>
-                  <span className="chip">{d.course.duration_hours} hours</span>
-                  <span className="chip">{d.stats.learners} learners</span>
-                  {d.stats.recordings > 0 ? <span className="chip">{d.stats.recordings} recordings</span> : null}
-                </div>
 
-                <h2 style={{ marginTop: 30 }}>What you will be able to do</h2>
-                <ul className="small" style={{ lineHeight: 2, marginTop: 10, color: 'var(--slate)' }}>
+            {/* The title sits above the split so that on a phone the price panel
+                can follow it directly (`buyfirst`) instead of arriving after
+                four screens of curriculum. */}
+            <div className="pagehead">
+              <span className="tchip mat">{d.course.subject}</span>
+              <h1 style={{ marginTop: 10 }}>{d.course.title}</h1>
+              <p className="lead" style={{ margin: '10px 0 0' }}>{d.course.subtitle}</p>
+              <div className="row tight" style={{ marginTop: 14, marginBottom: 24 }}>
+                <span className="chip">{d.course.level}</span>
+                <span className="chip">Ages {d.course.age_range}</span>
+                <span className="chip">{d.course.duration_hours} hours</span>
+                <span className="chip">{d.stats.learners} learners</span>
+                {d.stats.recordings > 0 ? <span className="chip">{d.stats.recordings} recordings</span> : null}
+              </div>
+            </div>
+
+            <div className="split2 buyfirst">
+              <div>
+                <h2>What you will be able to do</h2>
+                <ul className="small muted" style={{ lineHeight: 2, marginTop: 10 }}>
                   {(d.course.outcomes ?? []).map((o: string, i: number) => <li key={i}>{o}</li>)}
                 </ul>
 
@@ -200,17 +239,21 @@ function CoursePage({ slug, navigate }: { slug: string; navigate: Nav }) {
                     const open = openModule === m.id
                     return (
                       <div className="mod" key={m.id}>
-                        <button className="modhead" onClick={() => setOpenModule(open ? null : m.id)}>
+                        <button
+                          className="modhead"
+                          aria-expanded={open}
+                          onClick={() => setOpenModule(open ? null : m.id)}
+                        >
                           <span className="n">{String(m.position).padStart(2, '0')}</span>
-                          <span>{m.title}</span>
-                          <span className="spacer" />
-                          <span className="count">{m.lessons.length} lessons {open ? '▾' : '▸'}</span>
+                          <span className="ttl">{m.title}</span>
+                          <span className="count">
+                            {m.lessons.length} lessons <Glyph>{open ? '▾' : '▸'}</Glyph>
+                          </span>
                         </button>
                         {open ? m.lessons.map((l: any) => (
                           <div className="lessonrow locked" key={l.id}>
-                            <span>🔒</span>
-                            <span>{l.title}</span>
-                            <span className="spacer" />
+                            <Glyph>🔒</Glyph>
+                            <span className="ttl">{l.title}</span>
                             <span className="mins">{l.minutes} min</span>
                           </div>
                         )) : null}
@@ -223,8 +266,10 @@ function CoursePage({ slug, navigate }: { slug: string; navigate: Nav }) {
                 <div className="grid g2" style={{ marginTop: 12 }}>
                   {d.teachers.map((t: any) => (
                     <div className="card teachercard" key={t.full_name}>
-                      <div className="av">{t.full_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}</div>
-                      <div>
+                      <div className="av" aria-hidden="true">
+                        {t.full_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+                      </div>
+                      <div className="tx">
                         <h3>{t.full_name}</h3>
                         <div className="sub">{t.headline}{t.years_exp ? ` · ${t.years_exp} years` : ''}</div>
                         <p className="small muted" style={{ marginTop: 8, marginBottom: 0 }}>{t.bio}</p>
@@ -286,74 +331,98 @@ function Checkout({ slug, navigate, onSignedIn, toast }: {
 
   const set = (k: string) => (e: any) => setForm({ ...form, [k]: e.target.value })
 
+  const createAccount = async () => {
+    setErr('')
+    try {
+      await client.register(form)
+      setStep('pay')
+    } catch (e: any) { setErr(e.message) }
+  }
+
+  const signIn = async () => {
+    setErr('')
+    try {
+      await client.login({ email: form.email, password: form.password })
+      setStep('pay')
+    } catch (e: any) { setErr(e.message) }
+  }
+
   return (
-    <div className="wrap" style={{ paddingTop: 30, maxWidth: 900 }}>
+    <div className="wrap mid pad">
       <Page q={q}>
         {(d: any) => (
           <>
-            <button className="link" style={{ marginBottom: 14 }} onClick={() => navigate('course', slug)}>
-              ← Back to the course
+            <button className="backlink" onClick={() => navigate('course', slug)}>
+              <Glyph>←</Glyph> Back to the course
             </button>
-            <h1 style={{ fontSize: 28, letterSpacing: '-.03em' }}>Enrol in {d.course.title}</h1>
+            <h1>Enrol in {d.course.title}</h1>
 
-            <div className="row" style={{ margin: '20px 0 24px', gap: 24 }}>
-              {(['account', 'pay', 'done'] as const).map((s, i) => (
-                <div key={s} className={'checkoutstep' + (step === s ? ' on' : ['account', 'pay', 'done'].indexOf(step) > i ? ' done' : '')}>
-                  <span className="dot">{['account', 'pay', 'done'].indexOf(step) > i ? '✓' : i + 1}</span>
-                  {s === 'account' ? 'Your account' : s === 'pay' ? 'Payment' : 'Start learning'}
-                </div>
-              ))}
-            </div>
+            <ol className="checkoutsteps">
+              {(['account', 'pay', 'done'] as const).map((s, i) => {
+                const at = ['account', 'pay', 'done'].indexOf(step)
+                return (
+                  <li key={s} className={'checkoutstep' + (step === s ? ' on' : at > i ? ' done' : '')}>
+                    <span className="dot" aria-hidden="true">{at > i ? '✓' : i + 1}</span>
+                    {s === 'account' ? 'Your account' : s === 'pay' ? 'Payment' : 'Start learning'}
+                  </li>
+                )
+              })}
+            </ol>
 
             <div className="split2">
               <div>
                 {step === 'account' && (
                   <div className="card">
                     <div className="row tight" style={{ marginBottom: 16 }}>
-                      <button className={'btn sm ' + (mode === 'signup' ? 'gold' : 'ghost')} onClick={() => setMode('signup')}>
+                      <button className={'btn sm ' + (mode === 'signup' ? 'gold' : 'ghost')}
+                        aria-pressed={mode === 'signup'} onClick={() => setMode('signup')}>
                         I am new here
                       </button>
-                      <button className={'btn sm ' + (mode === 'signin' ? 'gold' : 'ghost')} onClick={() => setMode('signin')}>
+                      <button className={'btn sm ' + (mode === 'signin' ? 'gold' : 'ghost')}
+                        aria-pressed={mode === 'signin'} onClick={() => setMode('signin')}>
                         I already have an account
                       </button>
                     </div>
 
                     {mode === 'signup' ? (
-                      <>
-                        <Field label="Your full name"><input value={form.fullName} onChange={set('fullName')} /></Field>
-                        <Field label="Email"><input value={form.email} onChange={set('email')} placeholder="you@example.com" /></Field>
-                        <Field label="Password" help="At least 8 characters. A phrase you will remember is fine.">
-                          <input type="password" value={form.password} onChange={set('password')} />
+                      <form onSubmit={e => { e.preventDefault(); void createAccount() }}>
+                        <Field label="Your full name">
+                          <input value={form.fullName} onChange={set('fullName')} autoComplete="name" />
                         </Field>
-                        <div className="grid g2" style={{ gap: 10 }}>
-                          <Field label="School year (optional)"><input value={form.gradeLevel} onChange={set('gradeLevel')} placeholder="Class 9" /></Field>
+                        <Field label="Email">
+                          <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none"
+                            value={form.email} onChange={set('email')} placeholder="you@example.com" />
+                        </Field>
+                        <Field label="Password" help="At least 8 characters. A phrase you will remember is fine.">
+                          <input type="password" autoComplete="new-password"
+                            value={form.password} onChange={set('password')} />
+                        </Field>
+                        <div className="fieldpair">
+                          <Field label="School year (optional)">
+                            <input value={form.gradeLevel} onChange={set('gradeLevel')} placeholder="Class 9" />
+                          </Field>
                           <Field label="Parent or guardian email" help="Required if you are under 18.">
-                            <input value={form.guardianEmail} onChange={set('guardianEmail')} />
+                            <input type="email" inputMode="email" autoCapitalize="none"
+                              value={form.guardianEmail} onChange={set('guardianEmail')} />
                           </Field>
                         </div>
                         {err ? <Note tone="rose"><strong>{err}</strong></Note> : null}
-                        <Action label="Create my account" onClick={async () => {
-                          setErr('')
-                          try {
-                            await client.register(form)
-                            setStep('pay')
-                          } catch (e: any) { setErr(e.message) }
-                        }} />
-                      </>
+                        <div style={{ marginTop: 16 }}>
+                          <Action label="Create my account" wide onClick={createAccount} />
+                        </div>
+                      </form>
                     ) : (
-                      <>
-                        <Field label="Email"><input value={form.email} onChange={set('email')} /></Field>
-                        <Field label="Password" error={err}>
-                          <input type="password" value={form.password} onChange={set('password')} />
+                      <form onSubmit={e => { e.preventDefault(); void signIn() }}>
+                        <Field label="Email">
+                          <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none"
+                            value={form.email} onChange={set('email')} />
                         </Field>
-                        <Action label="Sign in" onClick={async () => {
-                          setErr('')
-                          try {
-                            await client.login({ email: form.email, password: form.password })
-                            setStep('pay')
-                          } catch (e: any) { setErr(e.message) }
-                        }} />
-                      </>
+                        <Field label="Password" error={err}>
+                          <input type="password" autoComplete="current-password"
+                            value={form.password} onChange={set('password')} />
+                        </Field>
+                        <Action label="Sign in" wide onClick={signIn} />
+                      </form>
                     )}
                   </div>
                 )}
@@ -393,14 +462,16 @@ function Checkout({ slug, navigate, onSignedIn, toast }: {
                 )}
 
                 {step === 'done' && (
-                  <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-                    <div style={{ fontSize: 40 }}>★</div>
-                    <h2 style={{ marginTop: 10 }}>You are in.</h2>
-                    <p className="muted" style={{ maxWidth: '44ch', margin: '10px auto 20px' }}>
-                      Everything is unlocked — lessons, the textbook, recordings, live classes and the
-                      exercises.
-                    </p>
-                    <Action label="Start learning" onClick={async () => { await onSignedIn() }} />
+                  <div className="card" style={{ textAlign: 'center' }}>
+                    <div className="lockbox" style={{ border: 0, boxShadow: 'none', padding: 0 }}>
+                      <Glyph className="big">★</Glyph>
+                      <h2 style={{ marginTop: 10 }}>You are in.</h2>
+                      <p className="muted" style={{ maxWidth: '44ch', margin: '10px auto 20px' }}>
+                        Everything is unlocked — lessons, the textbook, recordings, live classes and the
+                        exercises.
+                      </p>
+                      <Action label="Start learning" wide onClick={async () => { await onSignedIn() }} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -449,20 +520,22 @@ function SignIn({ navigate, onSignedIn }: { navigate: Nav; onSignedIn: () => Pro
   }
 
   return (
-    <div className="wrap" style={{ paddingTop: 40, maxWidth: 880 }}>
+    <div className="wrap mid pad">
       <div className="split2">
         <div className="card">
           <h2>Sign in</h2>
           <div className="sub" style={{ marginBottom: 16 }}>Students, teachers and Brolly staff all sign in here.</div>
-          <Field label="Email">
-            <input value={email} onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submit() }} />
-          </Field>
-          <Field label="Password" error={err}>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submit() }} />
-          </Field>
-          <Action label="Sign in" onClick={() => submit()} />
+          <form onSubmit={e => { e.preventDefault(); void submit() }}>
+            <Field label="Email">
+              <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none"
+                value={email} onChange={e => setEmail(e.target.value)} />
+            </Field>
+            <Field label="Password" error={err}>
+              <input type="password" autoComplete="current-password"
+                value={password} onChange={e => setPassword(e.target.value)} />
+            </Field>
+            <Action label="Sign in" wide onClick={() => submit()} />
+          </form>
           <p className="tiny muted" style={{ marginTop: 14 }}>
             New here? <button className="link" onClick={() => navigate('signup')}>Create an account</button>
           </p>
@@ -472,12 +545,11 @@ function SignIn({ navigate, onSignedIn }: { navigate: Nav; onSignedIn: () => Pro
           <h3>Demo logins</h3>
           <div className="sub" style={{ marginBottom: 12 }}>One click each. The seed data is the same every time.</div>
           {DEMO.map(d => (
-            <button key={d.email} className="unit" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
-              onClick={() => submit({ email: d.email, password: d.password })}>
-              <div className="num">→</div>
+            <button key={d.email} className="unit" onClick={() => submit({ email: d.email, password: d.password })}>
+              <Glyph className="num">→</Glyph>
               <div className="body">
-                <div className="t" style={{ fontSize: 14 }}>{d.label}</div>
-                <div className="m mono" style={{ fontSize: 12 }}>{d.email}</div>
+                <div className="t small">{d.label}</div>
+                <div className="m mono tiny">{d.email}</div>
               </div>
             </button>
           ))}
@@ -492,31 +564,45 @@ function SignUp({ navigate, onSignedIn }: { navigate: Nav; onSignedIn: () => Pro
   const [err, setErr] = useState('')
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value })
 
+  const submit = async () => {
+    setErr('')
+    try { await client.register(f); await onSignedIn() }
+    catch (e: any) { setErr(e.message) }
+  }
+
   return (
-    <div className="wrap" style={{ paddingTop: 40, maxWidth: 560 }}>
+    <div className="wrap narrow pad">
       <div className="card">
         <h2>Create your account</h2>
         <div className="sub" style={{ marginBottom: 16 }}>
           Free to create. You only pay when you enrol in a course.
         </div>
-        <Field label="Full name"><input value={f.fullName} onChange={set('fullName')} /></Field>
-        <Field label="Email"><input value={f.email} onChange={set('email')} placeholder="you@example.com" /></Field>
-        <Field label="Password" help="At least 8 characters. A phrase you will remember beats symbols you will forget.">
-          <input type="password" value={f.password} onChange={set('password')} />
-        </Field>
-        <div className="grid g2" style={{ gap: 10 }}>
-          <Field label="School year (optional)"><input value={f.gradeLevel} onChange={set('gradeLevel')} placeholder="Class 9" /></Field>
-          <Field label="Parent name (optional)"><input value={f.guardianName} onChange={set('guardianName')} /></Field>
-        </div>
-        <Field label="Parent or guardian email" error={err}
-          help="Required if you are under 18. We use it for consent and for anything a parent needs to know.">
-          <input value={f.guardianEmail} onChange={set('guardianEmail')} />
-        </Field>
-        <Action label="Create account" onClick={async () => {
-          setErr('')
-          try { await client.register(f); await onSignedIn() }
-          catch (e: any) { setErr(e.message) }
-        }} />
+        <form onSubmit={e => { e.preventDefault(); void submit() }}>
+          <Field label="Full name">
+            <input value={f.fullName} onChange={set('fullName')} autoComplete="name" />
+          </Field>
+          <Field label="Email">
+            <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none"
+              value={f.email} onChange={set('email')} placeholder="you@example.com" />
+          </Field>
+          <Field label="Password" help="At least 8 characters. A phrase you will remember beats symbols you will forget.">
+            <input type="password" autoComplete="new-password" value={f.password} onChange={set('password')} />
+          </Field>
+          <div className="fieldpair">
+            <Field label="School year (optional)">
+              <input value={f.gradeLevel} onChange={set('gradeLevel')} placeholder="Class 9" />
+            </Field>
+            <Field label="Parent name (optional)">
+              <input value={f.guardianName} onChange={set('guardianName')} autoComplete="off" />
+            </Field>
+          </div>
+          <Field label="Parent or guardian email" error={err}
+            help="Required if you are under 18. We use it for consent and for anything a parent needs to know.">
+            <input type="email" inputMode="email" autoCapitalize="none"
+              value={f.guardianEmail} onChange={set('guardianEmail')} />
+          </Field>
+          <Action label="Create account" wide onClick={submit} />
+        </form>
         <p className="tiny muted" style={{ marginTop: 14 }}>
           Already have one? <button className="link" onClick={() => navigate('signin')}>Sign in</button>
         </p>
@@ -530,28 +616,31 @@ function VerifyCertificate() {
   const [result, setResult] = useState<any>(null)
   const [checking, setChecking] = useState(false)
 
+  const check = async () => {
+    setChecking(true); setResult(null)
+    try { setResult(await client.get(`/public/certificates/${encodeURIComponent(code.trim())}`)) }
+    finally { setChecking(false) }
+  }
+
   return (
-    <div className="wrap" style={{ paddingTop: 40, maxWidth: 560 }}>
+    <div className="wrap narrow pad">
       <div className="card">
         <h2>Verify a certificate</h2>
         <div className="sub" style={{ marginBottom: 16 }}>
           Enter the code printed on a Brolly Juniors certificate. No account needed.
         </div>
-        <Field label="Verification code">
-          <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="A1B2C3D4E5F6"
-            style={{ fontFamily: 'var(--mono)' }} />
-        </Field>
-        <Action label={checking ? 'Checking' : 'Check it'} onClick={async () => {
-          setChecking(true); setResult(null)
-          try { setResult(await client.get(`/public/certificates/${encodeURIComponent(code.trim())}`)) }
-          finally { setChecking(false) }
-        }} />
+        <form onSubmit={e => { e.preventDefault(); void check() }}>
+          <Field label="Verification code">
+            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="A1B2C3D4E5F6"
+              autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+              style={{ fontFamily: 'var(--mono)' }} />
+          </Field>
+          <Action label={checking ? 'Checking' : 'Check it'} wide onClick={check} />
+        </form>
 
         {result ? (result.valid ? (
           <div className="cert" style={{ marginTop: 20 }}>
-            <div className="tiny" style={{ letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--slate)' }}>
-              Genuine certificate
-            </div>
+            <div className="lbl">Genuine certificate</div>
             <h3>{result.holder}</h3>
             <div className="muted">completed <strong>{result.course}</strong></div>
             <div className="serial">{result.serial}</div>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Brolly Juniors</string>
+    <string name="title_activity_main">Brolly Juniors</string>
+    <string name="package_name">in.brollyjuniors.app</string>
+    <string name="custom_url_scheme">in.brollyjuniors.app</string>
+</resources>

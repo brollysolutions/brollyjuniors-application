@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import * as client from '@/lib/api'
 import {
-  Action, Bar, Crumb, Empty, Field, Head, Modal, Note, Page, Pill, Stat, Table,
+  Action, Bar, Crumb, Empty, Field, Glyph, Head, Modal, Note, Page, Pill, Stat, Table,
   fmtAgo, fmtDate, fmtDateTime, duration, price, mmss, useLoad, useSession,
 } from '@/components/ui'
 import { Blocks } from '@/components/blocks'
@@ -63,7 +63,7 @@ function Home() {
                     <span className="tchip mat">{c.subject}</span>
                     <h3 style={{ marginTop: 7 }}>{c.title}</h3>
                     <div className="sub">{c.subtitle}</div>
-                    <div style={{ margin: '12px 0' }}><Bar v={c.completion} /></div>
+                    <div style={{ margin: '12px 0' }}><Bar v={c.completion} label={`${c.title} progress`} /></div>
                     <div className="row tight">
                       <button className="btn gold sm" onClick={() => go('course', c.id)}>
                         {c.completion > 0 ? 'Carry on' : 'Start'}
@@ -82,7 +82,8 @@ function Home() {
               <div className="lib">
                 {d.next.map((l: any) => (
                   <button className="libcard" key={l.id} onClick={() => go('lesson', l.id)}>
-                    <div className="thumb mat"><div style={{ fontSize: 26 }}>▤</div>
+                    <div className="thumb mat">
+                      <Glyph className="gl">▤</Glyph>
                       {l.percent > 0 ? <div className="prog"><i style={{ width: `${l.percent}%` }} /></div> : null}
                     </div>
                     <div className="pad">
@@ -155,7 +156,7 @@ function MyCourses() {
                     <span className="tchip mat">{c.subject}</span>
                     <h3 style={{ marginTop: 7 }}>{c.title}</h3>
                     <div className="sub">{c.done} of {c.total} things finished</div>
-                    <div style={{ margin: '12px 0' }}><Bar v={c.completion} /></div>
+                    <div style={{ margin: '12px 0' }}><Bar v={c.completion} label={`${c.title} progress`} /></div>
                     <div className="tiny muted">Enrolled {fmtDate(c.enrolled_at)}</div>
                     <div style={{ marginTop: 12 }}>
                       <button className="btn gold sm" onClick={() => go('course', c.id)}>Open</button>
@@ -194,9 +195,9 @@ function Browse() {
                   <div className="sub" style={{ marginTop: 8 }}>
                     {c.level} · {c.duration_hours} hours · {c.lessons} lessons · {c.learners} learners
                   </div>
-                  <div className="row" style={{ marginTop: 14, alignItems: 'center' }}>
-                    <strong style={{ fontSize: 20 }}>{price(c.price_minor)}</strong>
-                    <span style={{ flex: 1 }} />
+                  <div className="row" style={{ marginTop: 14 }}>
+                    <strong style={{ fontSize: 'var(--fs-lg)' }}>{price(c.price_minor)}</strong>
+                    <span className="spacer" />
                     {enrolled.has(c.id)
                       ? <button className="btn ghost sm" onClick={() => go('course', c.id)}>Open</button>
                       : <button className="btn gold sm" onClick={() => { setBuying(c); setErr('') }}>Enrol</button>}
@@ -256,11 +257,12 @@ function CourseView() {
             <Stat small k="Assignments" v={d.assignments.length} />
           </div>
 
-          <div className="filters" style={{ marginTop: 20 }}>
+          <div className="filters" role="tablist" aria-label="Course sections" style={{ marginTop: 20 }}>
             {([['lessons', 'Lessons'], ['textbook', 'Textbook'], ['recordings', 'Recordings'],
                ['materials', 'Materials'], ['quizzes', 'Quizzes'], ['assignments', 'Assignments']] as const)
               .map(([k, label]) => (
-                <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k as any)}>{label}</button>
+                <button key={k} role="tab" aria-selected={tab === k}
+                  className={tab === k ? 'on' : ''} onClick={() => setTab(k as any)}>{label}</button>
               ))}
           </div>
 
@@ -270,16 +272,14 @@ function CourseView() {
                 <div className="mod" key={m.id}>
                   <div className="modhead" style={{ cursor: 'default' }}>
                     <span className="n">{String(m.position).padStart(2, '0')}</span>
-                    <span>{m.title}</span>
-                    <span className="spacer" />
+                    <span className="ttl">{m.title}</span>
                     <span className="count">{m.lessons.length} lessons</span>
                   </div>
                   {m.lessons.map((l: any) => (
                     <button className="lessonrow" key={l.id} onClick={() => go('lesson', l.id)}>
-                      <span>{l.status === 'completed' ? '✓' : l.status === 'in_progress' ? '▸' : '·'}</span>
-                      <span>{l.title}</span>
-                      {l.exercises > 0 ? <span className="tchip lab" style={{ marginLeft: 8 }}>{l.exercises} exercise{l.exercises === 1 ? '' : 's'}</span> : null}
-                      <span className="spacer" />
+                      <Glyph>{l.status === 'completed' ? '✓' : l.status === 'in_progress' ? '▸' : '·'}</Glyph>
+                      <span className="ttl">{l.title}</span>
+                      {l.exercises > 0 ? <span className="tchip lab">{l.exercises} exercise{l.exercises === 1 ? '' : 's'}</span> : null}
                       <span className="mins">{l.minutes} min</span>
                     </button>
                   ))}
@@ -302,8 +302,10 @@ function CourseView() {
             <div className="lib">
               {d.recordings.map((r: any) => (
                 <button className="libcard" key={r.id} onClick={() => go('recording', r.id)}>
-                  <div className="thumb"><div className="play">▶</div>
-                    <span className="dur">{duration(r.duration_seconds)}</span></div>
+                  <div className="thumb">
+                    <Glyph className="play">▶</Glyph>
+                    <span className="dur">{duration(r.duration_seconds)}</span>
+                  </div>
                   <div className="pad">
                     <span className="tchip vid">Recording</span><h4>{r.title}</h4>
                     <div className="meta">{fmtDate(r.recorded_on)} {r.status === 'completed' ? <Pill tone="ok">Watched</Pill> : null}</div>
@@ -389,12 +391,12 @@ function LessonView() {
               <Head title="Try it yourself" sub="Practice runs in your browser and is never marked" />
               {d.exercises.map((e: any) => (
                 <div className="unit" key={e.id}>
-                  <div className="num">{e.status === 'completed' ? '✓' : '▧'}</div>
+                  <Glyph className="num">{e.status === 'completed' ? '✓' : '▧'}</Glyph>
                   <div className="body">
                     <div className="t">{e.title}</div>
                     <div className="m">{e.brief}</div>
                   </div>
-                  <button className="btn ghost sm" onClick={() => go('exercise', e.id)}>
+                  <button className="btn ghost sm stack" onClick={() => go('exercise', e.id)}>
                     {e.status === 'completed' ? 'Open again' : 'Try it'}
                   </button>
                 </div>
@@ -408,7 +410,7 @@ function LessonView() {
               toast('Marked as done')
               if (d.next) go('lesson', d.next.id); else q.reload()
             }} />
-            {d.next ? <button className="btn ghost" onClick={() => go('lesson', d.next.id)}>
+            {d.next ? <button className="btn ghost stack" onClick={() => go('lesson', d.next.id)}>
               Next: {d.next.title}
             </button> : null}
           </div>
@@ -438,13 +440,12 @@ function TextbookView() {
               <div className="mod" key={ch.id}>
                 <div className="modhead" style={{ cursor: 'default' }}>
                   <span className="n">{String(ch.position).padStart(2, '0')}</span>
-                  <span>{ch.title}</span>
-                  <span className="spacer" />
+                  <span className="ttl">{ch.title}</span>
                   <span className="count">{ch.sections.length} sections</span>
                 </div>
                 {ch.sections.map((s: any) => (
                   <button className="lessonrow" key={s.id} onClick={() => go('section', s.id)}>
-                    <span>▤</span><span>{s.title}</span><span className="spacer" />
+                    <Glyph>▤</Glyph><span className="ttl">{s.title}</span>
                   </button>
                 ))}
               </div>
@@ -490,7 +491,7 @@ function ExerciseView() {
             nothing counts towards a grade.
           </Note>
 
-          <div className="grid g2" style={{ marginTop: 14 }}>
+          <div className="split2" style={{ marginTop: 14 }}>
             <div>
               <div className="card" style={{ marginBottom: 14 }}>
                 <h3>What to do</h3>
@@ -499,7 +500,7 @@ function ExerciseView() {
               <div className="card">
                 <h3>Stuck?</h3>
                 {(d.exercise.hints ?? []).slice(0, hints).map((h: string, i: number) => (
-                  <div className="unit" key={i} style={{ marginBottom: 7 }}>
+                  <div className="unit" key={i}>
                     <div className="num">{i + 1}</div><div className="body"><div className="m">{h}</div></div>
                   </div>
                 ))}
@@ -509,7 +510,7 @@ function ExerciseView() {
                     </button>
                   : !showSolution
                     ? <button className="btn ghost sm" onClick={() => setShowSolution(true)}>Show the answer</button>
-                    : <pre className="console" style={{ borderRadius: 10, marginTop: 8 }}>{d.exercise.solution}</pre>}
+                    : <pre className="console" style={{ borderRadius: 'var(--r-md)', marginTop: 8, borderTop: 0 }}>{d.exercise.solution}</pre>}
                 <div className="tiny muted" style={{ marginTop: 8 }}>
                   Looking at the answer is fine here. Practice is for learning, not for marks.
                 </div>
@@ -525,7 +526,7 @@ function ExerciseView() {
                 if (r.solved) toast('Solved — nicely done')
                 return r
               }}
-              footer={<button className="btn ghost" onClick={() => go('lesson', d.exercise.lessonId)}>
+              footer={<button className="btn ghost stack" onClick={() => go('lesson', d.exercise.lessonId)}>
                 Back to the lesson
               </button>}
             />
@@ -597,11 +598,20 @@ function CodeRunner({ filename, starter, tests, onRun, footer }: {
         <div className="bar2">
           <span className="fn">{filename}</span><span className="spacer" /><span className="saved">{saved}</span>
         </div>
-        <textarea value={code} onChange={e => setCode(e.target.value)} spellCheck={false} />
+        <textarea
+          value={code}
+          onChange={e => setCode(e.target.value)}
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="none"
+          autoComplete="off"
+          aria-label={`${filename} source`}
+          wrap="off"
+        />
         <div className="console">{busy ? <><span className="spinner" /> </> : null}{out}</div>
       </div>
       <div className="row" style={{ marginTop: 12 }}>
-        <button className="btn gold" disabled={busy} onClick={execute}>
+        <button className="btn gold stack" type="button" disabled={busy} onClick={execute}>
           {busy ? <><span className="spinner" /> Running</> : 'Run'}
         </button>
         {footer}
@@ -656,14 +666,15 @@ function QuizView() {
                   <div className="qt">{r.text}</div>
                   {(r.options ?? []).map((o: string, oi: number) => (
                     <div key={oi} className={'opt' + (oi === r.answer_index ? ' right' : oi === r.choice_index ? ' wrong' : '')}>
-                      <span className="l">{'ABCD'[oi]}</span><span>{o}</span>
-                      {oi === r.answer_index ? <span className="tiny muted" style={{ marginLeft: 'auto' }}>correct</span> : null}
+                      <span className="l">{'ABCD'[oi]}</span>
+                      <span className="tx">{o}</span>
+                      {oi === r.answer_index ? <span className="mark">correct</span> : null}
                     </div>
                   ))}
                   {r.explanation ? <div className="tiny muted" style={{ marginTop: 8 }}>{r.explanation}</div> : null}
                 </div>
               ))}
-              <button className="btn ghost" onClick={() => go('course', d.quiz.course_id)}>Back to the course</button>
+              <button className="btn ghost stack" onClick={() => go('course', d.quiz.course_id)}>Back to the course</button>
             </>
           )
         }
@@ -710,31 +721,35 @@ function QuizView() {
         const answered = Object.keys(answers).length
         return (
           <>
-            <div className="row" style={{ alignItems: 'center', marginBottom: 16 }}>
+            <div className="sechead">
               <div>
                 <h2>{d.quiz.title}</h2>
-                <div className="tiny muted">{answered} of {d.questions.length} answered · answers save as you go</div>
+                <p>{answered} of {d.questions.length} answered · answers save as you go</p>
               </div>
             </div>
             {d.questions.map((qq: any) => (
               <div className="qcard" key={qq.id}>
                 <div className="qn">Question {qq.position} · {qq.marks} mark{qq.marks === 1 ? '' : 's'}</div>
-                <div className="qt">{qq.text}</div>
-                {(qq.options ?? []).map((o: string, oi: number) => (
-                  <button key={oi} className={'opt' + (answers[qq.id] === oi ? ' sel' : '')}
-                    onClick={async () => {
-                      setAnswers(a => ({ ...a, [qq.id]: oi }))
-                      await client.post(`/student/quiz-attempts/${attemptId}/answer`,
-                        { questionId: qq.id, choiceIndex: oi }).catch(() => {})
-                    }}>
-                    <span className="l">{'ABCD'[oi]}</span><span>{o}</span>
-                  </button>
-                ))}
+                <div className="qt" id={`q-${qq.id}`}>{qq.text}</div>
+                <div role="radiogroup" aria-labelledby={`q-${qq.id}`}>
+                  {(qq.options ?? []).map((o: string, oi: number) => (
+                    <button key={oi} type="button" role="radio" aria-checked={answers[qq.id] === oi}
+                      className={'opt' + (answers[qq.id] === oi ? ' sel' : '')}
+                      onClick={async () => {
+                        setAnswers(a => ({ ...a, [qq.id]: oi }))
+                        await client.post(`/student/quiz-attempts/${attemptId}/answer`,
+                          { questionId: qq.id, choiceIndex: oi }).catch(() => {})
+                      }}>
+                      <span className="l">{'ABCD'[oi]}</span>
+                      <span className="tx">{o}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
             {err ? <Note tone="rose"><strong>{err}</strong></Note> : null}
             <div className="row" style={{ marginTop: 14 }}>
-              <div style={{ flex: 1 }} />
+              <span className="spacer" />
               <Action label="Submit the quiz" onClick={async () => {
                 setErr('')
                 try {
@@ -841,7 +856,8 @@ function Recordings() {
               <div className="lib">
                 {d.recordings.map((r: any) => (
                   <button className="libcard" key={r.id} onClick={() => go('recording', r.id)}>
-                    <div className="thumb"><div className="play">▶</div>
+                    <div className="thumb">
+                      <Glyph className="play">▶</Glyph>
                       <span className="dur">{duration(r.duration_seconds)}</span>
                       {r.percent > 0 ? <div className="prog"><i style={{ width: `${r.percent}%` }} /></div> : null}
                     </div>
@@ -885,20 +901,35 @@ function RecordingView() {
           <>
             <Crumb to="recordings" label="Recordings" here={d.recording.title.toUpperCase()} />
             <Head title={d.recording.title} sub={`${d.recording.course} · ${fmtDate(d.recording.recorded_on)}`} />
-            <div className="grid g2" style={{ gridTemplateColumns: '1.7fr 1fr' }}>
+            <div className="split2">
               <div>
-                <div className="player" onClick={() => setPlaying(p => !p)} style={{ cursor: 'pointer' }}>
+                <button
+                  className="player"
+                  type="button"
+                  aria-label={playing ? 'Pause' : 'Play'}
+                  aria-pressed={playing}
+                  onClick={() => setPlaying(p => !p)}
+                >
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 40 }}>{playing ? '❚❚' : '▶'}</div>
+                    <Glyph className="gl">{playing ? '❚❚' : '▶'}</Glyph>
                     <div className="tiny" style={{ marginTop: 6 }}>{playing ? 'Playing' : 'Tap to play'}</div>
                   </div>
-                </div>
+                </button>
                 <div className="pbar">
                   <span>{mmss(pos)}</span>
-                  <div className="track" onClick={e => {
-                    const r = (e.target as HTMLElement).getBoundingClientRect()
-                    setPos(Math.round((e.clientX - r.left) / r.width * d.recording.duration_seconds))
-                  }}><i style={{ width: `${pct}%` }} /></div>
+                  {/* The visible track is 6px tall. The button around it is 44,
+                      which is what a thumb actually needs to scrub. */}
+                  <button
+                    className="scrub"
+                    type="button"
+                    aria-label="Seek"
+                    onClick={e => {
+                      const r = e.currentTarget.getBoundingClientRect()
+                      setPos(Math.round((e.clientX - r.left) / r.width * d.recording.duration_seconds))
+                    }}
+                  >
+                    <span className="track"><i style={{ width: `${pct}%` }} /></span>
+                  </button>
                   <span>{duration(d.recording.duration_seconds)}</span>
                 </div>
                 <div className="row" style={{ marginTop: 14 }}>
@@ -959,7 +990,7 @@ function Assignments() {
                       : a.submission_status ? <Pill tone="wait">Submitted</Pill>
                       : <Pill tone="mute">Not started</Pill>}</td>
                     <td className="mono">{a.score != null ? `${a.score}/${a.max_score}` : '—'}</td>
-                    <td><button className="btn ghost sm" onClick={() => go('assignment', a.id)}>Open</button></td>
+                    <td><button className="btn ghost sm stack" onClick={() => go('assignment', a.id)}>Open</button></td>
                   </tr>
                 ))}
               </Table>
@@ -996,11 +1027,11 @@ function AssignmentView() {
               <Note><strong>Your teacher asked for another go.</strong> {s.feedback}</Note>
             ) : null}
 
-            <div className="grid g2">
+            <div className="split2">
               <div>
                 <div className="card" style={{ marginBottom: 14 }}>
                   <h3>What to do</h3>
-                  <div className="doc" style={{ boxShadow: 'none', padding: 0, marginTop: 8, maxWidth: 'none' }}>
+                  <div className="doc bare" style={{ marginTop: 8 }}>
                     <Blocks blocks={d.assignment.instructions} />
                   </div>
                 </div>
@@ -1030,12 +1061,14 @@ function AssignmentView() {
                 </Field>
                 <Field label="Code (optional)">
                   <textarea value={code ?? s?.code ?? ''} onChange={e => setCode(e.target.value)}
-                    style={{ minHeight: 140, fontFamily: 'var(--mono)', fontSize: 13 }} disabled={locked} />
+                    spellCheck={false} autoCorrect="off" autoCapitalize="none"
+                    style={{ minHeight: 160, fontFamily: 'var(--mono)', whiteSpace: 'pre', overflowX: 'auto' }}
+                    disabled={locked} />
                 </Field>
                 {err ? <Note tone="rose"><strong>{err}</strong></Note> : null}
                 {locked
                   ? <p className="tiny muted">This has been graded and cannot be resubmitted.</p>
-                  : <Action label={s ? 'Update my submission' : 'Submit'} onClick={async () => {
+                  : <Action wide label={s ? 'Update my submission' : 'Submit'} onClick={async () => {
                       setErr('')
                       try {
                         await client.post(`/student/assignments/${param}/submit`,
@@ -1076,13 +1109,13 @@ function Progress() {
           <Head title="Course by course" />
           {d.courses.map((c: any) => (
             <div className="card" key={c.id} style={{ marginBottom: 12 }}>
-              <div className="row" style={{ alignItems: 'baseline' }}>
+              <div className="row tight">
                 <h3>{c.title}</h3>
-                <span style={{ flex: 1 }} />
+                <span className="spacer" />
                 {c.status === 'completed' ? <Pill tone="ok">Completed</Pill> : <Pill tone="wait">In progress</Pill>}
               </div>
               <div className="sub">{c.done} of {c.total} things finished</div>
-              <div style={{ margin: '12px 0' }}><Bar v={c.completion} /></div>
+              <div style={{ margin: '12px 0' }}><Bar v={c.completion} label={`${c.title} progress`} /></div>
               {c.quiz?.taken ? (
                 <div className="tiny muted">
                   {c.quiz.taken} quizzes taken · average {c.quiz.avg_pct}% · {c.quiz.passed} passed
@@ -1094,14 +1127,14 @@ function Progress() {
           {d.badges.length ? (
             <>
               <Head title="Badges" />
-              <div className="row">
+              <div className="badges">
                 {Object.entries(BADGES).map(([key, label]) => {
                   const earned = d.badges.some((b: any) => b.badge_key === key)
                   return (
-                    <div className="card" key={key}
-                      style={{ flex: 1, minWidth: 140, textAlign: 'center', opacity: earned ? 1 : 0.45 }}>
-                      <div style={{ fontSize: 26 }}>{earned ? '★' : '☆'}</div>
+                    <div className="card" key={key} style={{ opacity: earned ? 1 : 0.45 }}>
+                      <Glyph className="gl">{earned ? '★' : '☆'}</Glyph>
                       <div className="small" style={{ fontWeight: 600, marginTop: 4 }}>{label}</div>
+                      <span className="tiny muted">{earned ? 'Earned' : 'Not yet'}</span>
                     </div>
                   )
                 })}
@@ -1139,15 +1172,13 @@ function Certificates() {
               <div className="grid g2">
                 {d.certificates.map((c: any) => (
                   <div className="cert" key={c.id}>
-                    <div className="tiny" style={{ letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--slate)' }}>
-                      {me.brand.name}
-                    </div>
+                    <div className="lbl">{me.brand.name}</div>
                     <h3>{c.course}</h3>
                     <div className="muted">awarded to <strong>{me.user.fullName}</strong></div>
                     {c.final_score ? <div className="muted small" style={{ marginTop: 6 }}>Final score {c.final_score}%</div> : null}
                     <div className="serial">{c.serial} · {fmtDate(c.issued_at)}</div>
                     <div className="row" style={{ justifyContent: 'center', marginTop: 14 }}>
-                      <button className="btn ghost sm" onClick={() => {
+                      <button className="btn ghost sm stack" onClick={() => {
                         navigator.clipboard?.writeText(c.verification_code)
                         toast('Verification code copied')
                       }}>Copy verification code</button>
@@ -1178,12 +1209,16 @@ function Profile() {
         return (
           <>
             <Head title="My profile" sub={me.user.email} />
-            <div className="grid g2">
+            <div className="split2">
               <div className="card">
                 <h3>About me</h3>
                 <div className="sub" style={{ marginBottom: 12 }}>Only you and Brolly can see this</div>
-                <Field label="Full name"><input value={name} onChange={e => setName(e.target.value)} /></Field>
-                <Field label="Email" help="Sign in with this."><input value={d.profile.email} readOnly /></Field>
+                <Field label="Full name">
+                  <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" />
+                </Field>
+                <Field label="Email" help="Sign in with this.">
+                  <input value={d.profile.email} readOnly type="email" />
+                </Field>
                 <Field label="School year"><input value={f.gradeLevel ?? ''} onChange={e => setForm({ ...f, gradeLevel: e.target.value })} /></Field>
                 <Action label="Save" onClick={async () => {
                   await client.patch('/me', { fullName: name })
@@ -1198,8 +1233,14 @@ function Profile() {
                     Used for consent and for anything a parent needs to know. Your teacher cannot see it.
                   </div>
                   <Field label="Name"><input value={f.guardianName ?? ''} onChange={e => setForm({ ...f, guardianName: e.target.value })} /></Field>
-                  <Field label="Email"><input value={f.guardianEmail ?? ''} onChange={e => setForm({ ...f, guardianEmail: e.target.value })} /></Field>
-                  <Field label="Phone"><input value={f.guardianPhone ?? ''} onChange={e => setForm({ ...f, guardianPhone: e.target.value })} /></Field>
+                  <Field label="Email">
+                    <input type="email" inputMode="email" autoCapitalize="none"
+                      value={f.guardianEmail ?? ''} onChange={e => setForm({ ...f, guardianEmail: e.target.value })} />
+                  </Field>
+                  <Field label="Phone">
+                    <input type="tel" inputMode="tel" autoComplete="tel"
+                      value={f.guardianPhone ?? ''} onChange={e => setForm({ ...f, guardianPhone: e.target.value })} />
+                  </Field>
                   <div className="row tight" style={{ marginTop: 4 }}>
                     <Pill tone={d.profile.consent_status === 'pending' ? 'wait' : 'ok'}>
                       Consent: {d.profile.consent_status.replace('_', ' ')}
@@ -1228,10 +1269,10 @@ function OrderHistory() {
           : (
             <>
               {d.orders.map((o: any) => (
-                <div key={o.id} style={{ display: 'flex', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
-                  <div className="small" style={{ flex: 1 }}>
+                <div className="orderrow" key={o.id}>
+                  <div className="nm">
                     {o.course}
-                    <div className="tiny muted mono">{o.provider} · {o.provider_ref}</div>
+                    <div className="tiny muted mono break">{o.provider} · {o.provider_ref}</div>
                   </div>
                   <div className="small mono">{price(o.amount_minor)}</div>
                   <Pill tone={o.status === 'paid' ? 'ok' : o.status === 'failed' ? 'bad' : 'wait'}>{o.status}</Pill>

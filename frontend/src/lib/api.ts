@@ -8,9 +8,16 @@
  * its own, which is why a reload can restore a session without the app ever
  * holding a long-lived credential.
  *
- * Next rewrites /api/* to the FastAPI service, so every request below is
- * same-origin and the cookie travels without CORS credentials games.
+ * On the web, Next rewrites /api/* to the FastAPI service, so every request
+ * below is same-origin and the cookie travels without CORS credentials games.
+ * In the Capacitor app there is no proxy, so the same calls go straight to the
+ * API host with credentials: 'include'. Both cases are resolved by
+ * platform.ts; nothing else in the app has to know which one it is in.
  */
+import { apiBase, credentialsMode } from './platform'
+
+/** Absolute in the app, relative on the web. `path` is relative to /api/v1. */
+const apiUrl = (path: string) => `${apiBase()}/api/v1${path}`
 
 let accessToken: string | null = null
 let refreshing: Promise<boolean> | null = null
@@ -32,9 +39,9 @@ async function refresh(): Promise<boolean> {
   if (!refreshing) {
     refreshing = (async () => {
       try {
-        const r = await fetch('/api/v1/auth/refresh', {
+        const r = await fetch(apiUrl('/auth/refresh'), {
           method: 'POST',
-          credentials: 'same-origin',
+          credentials: credentialsMode(),
         })
         if (!r.ok) return false
         const j = await r.json()
@@ -51,9 +58,9 @@ async function refresh(): Promise<boolean> {
 }
 
 async function raw(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(`/api/v1${path}`, {
+  return fetch(apiUrl(path), {
     ...init,
-    credentials: 'same-origin',
+    credentials: credentialsMode(),
     headers: {
       ...(init.body ? { 'content-type': 'application/json' } : {}),
       ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
@@ -90,9 +97,9 @@ export const patch = <T = any>(p: string, body: unknown) =>
   api<T>(p, { method: 'PATCH', body: JSON.stringify(body) })
 
 export async function login(body: { email: string; password: string }) {
-  const r = await fetch('/api/v1/auth/login', {
+  const r = await fetch(apiUrl('/auth/login'), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: credentialsMode(),
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -110,9 +117,9 @@ export async function register(body: {
   guardianName?: string
   guardianEmail?: string
 }) {
-  const r = await fetch('/api/v1/auth/register', {
+  const r = await fetch(apiUrl('/auth/register'), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: credentialsMode(),
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -126,7 +133,7 @@ export async function register(body: {
 
 export async function logout() {
   try {
-    await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    await fetch(apiUrl('/auth/logout'), { method: 'POST', credentials: credentialsMode() })
   } catch { /* offline */ }
   accessToken = null
 }

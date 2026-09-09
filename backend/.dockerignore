@@ -1,0 +1,13 @@
+# The host virtualenv must never reach the image: it holds Windows binaries.
+.venv/
+**/__pycache__/
+*.pyc
+
+# Generated signing keys stay on the host; the container gets its own volume.
+.data/
+
+# Local overrides — the image is configured by compose, not by a baked file.
+.env
+
+.pytest_cache/
+.mypy_cache/

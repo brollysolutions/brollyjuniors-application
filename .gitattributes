@@ -1,0 +1,19 @@
+# Default: let git normalise text in the repository.
+* text=auto
+
+# Files a Linux container executes must stay LF whatever the host does.
+# A CRLF shebang line fails as `no such file or directory`, naming the
+# interpreter — one of the more confusing errors Docker can produce.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Windows-side scripts keep CRLF.
+*.ps1 text eol=crlf
+
+# Never touch these.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

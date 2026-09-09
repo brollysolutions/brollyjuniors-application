@@ -39,17 +39,23 @@ function BlockView({ block }: { block: any }) {
     case 'callout':
       return <div className={'callout' + (block.variant === 'warning' ? ' warning' : '')}>{block.text}</div>
     case 'video':
+      // The 16:9 box is reserved before the media resolves, so the text below
+      // it does not jump when the player arrives.
       return (
-        <div className="dropzone" style={{ padding: 40, marginBottom: 12 }}>
-          ▶ {block.caption || 'Video'}
-          <div className="tiny" style={{ marginTop: 6 }}>Plays from a signed link once you open it.</div>
+        <div className="dropzone media" style={{ marginBottom: 12 }}>
+          <div>
+            <span aria-hidden="true">▶</span> {block.caption || 'Video'}
+            <div className="tiny" style={{ marginTop: 6 }}>Plays from a signed link once you open it.</div>
+          </div>
         </div>
       )
     case 'image':
       // Media is referenced by id and resolved to a signed URL at delivery time.
       return (
         <figure style={{ margin: '0 0 12px' }}>
-          <div className="dropzone" style={{ padding: 34 }}>▤ {block.alt || 'Image'}</div>
+          <div className="dropzone media">
+            <div><span aria-hidden="true">▤</span> {block.alt || 'Image'}</div>
+          </div>
           {block.caption ? <figcaption className="tiny muted" style={{ marginTop: 6 }}>{block.caption}</figcaption> : null}
         </figure>
       )

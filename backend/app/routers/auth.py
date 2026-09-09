@@ -122,11 +122,32 @@ async def _issue_session(
     return session_id, refresh
 
 
+# The mobile app talks to this API cross-site, so samesite/secure are settings
+# rather than constants — see Settings.cookie_samesite. They have to match on
+# the way out too: a Set-Cookie that clears a cookie is only accepted when its
+# attributes match the one being cleared.
+COOKIE_ATTRS = dict(
+    path="/api/v1/auth",
+    samesite=settings.cookie_samesite,
+    secure=settings.cookie_secure,
+    httponly=True,
+)
+
+
 def _set_cookie(response: Response, refresh: str) -> None:
     response.set_cookie(
         settings.cookie_name, refresh,
-        httponly=True, samesite="lax", secure=settings.is_prod,
-        path="/api/v1/auth", max_age=settings.refresh_token_days * 86400,
+        max_age=settings.refresh_token_days * 86400, **COOKIE_ATTRS,
+    )
+
+
+def _clear_cookie(response: Response) -> None:
+    response.delete_cookie(
+        settings.cookie_name,
+        path=COOKIE_ATTRS["path"],
+        samesite=COOKIE_ATTRS["samesite"],
+        secure=COOKIE_ATTRS["secure"],
+        httponly=True,
     )
 
 
@@ -272,7 +293,7 @@ async def refresh(request: Request, response: Response, _=Depends(public_route))
                     summary="Refresh token replayed — every session in the family was revoked",
                 ),
             )
-        response.delete_cookie(settings.cookie_name, path="/api/v1/auth")
+        _clear_cookie(response)
         raise unauthorized("That session was already used. Sign in again.")
 
     if row["expires_at"] < datetime.now(timezone.utc):
@@ -302,7 +323,7 @@ async def logout(request: Request, response: Response, _=Depends(public_route)):
                 "UPDATE session SET revoked_at = now() WHERE refresh_token_hash = $1",
                 sha256(presented),
             )
-    response.delete_cookie(settings.cookie_name, path="/api/v1/auth")
+    _clear_cookie(response)
     return {"ok": True}
 
 

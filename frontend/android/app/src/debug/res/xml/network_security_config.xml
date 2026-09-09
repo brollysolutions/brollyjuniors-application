@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only — this whole src/debug tree is merged into debug variants
+  and is absent from a release APK/AAB, which keeps Android's default there:
+  HTTPS or nothing.
+
+  It exists because local development is plain http. The API runs on the
+  developer's machine, which the app reaches at 10.0.2.2 from an emulator or a
+  LAN address from a real device, and Android 9+ refuses cleartext to either
+  unless something says otherwise. Live reload (CAP_SERVER_URL) needs the same.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

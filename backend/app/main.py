@@ -19,7 +19,7 @@ from .config import settings
 from .core import redis_client
 from .deps import assert_every_route_guarded
 from .errors import HttpError, http_code, problem_response
-from .routers import auth, catalog, student
+from .routers import admin, auth, catalog, student, teacher
 
 log = logging.getLogger("brolly")
 
@@ -49,9 +49,12 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
+# In production the list is exact, because a credentialed request cannot be
+# answered with "*" — and the mobile app is on that list, since a Capacitor
+# WebView is a different origin from the website (see settings.mobile_origins).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.web_origin] if settings.is_prod else ["*"],
+    allow_origins=settings.allowed_origins if settings.is_prod else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -110,6 +113,8 @@ async def handle_unexpected(request: Request, exc: Exception):
 app.include_router(auth.router)
 app.include_router(catalog.router)
 app.include_router(student.router)
+app.include_router(admin.router)
+app.include_router(teacher.router)
 
 
 @app.get("/health")

@@ -1,0 +1,16 @@
+# Reinstalled inside the image; a host tree would carry win32 binaries.
+node_modules/
+
+# Build output — the image builds its own.
+.next/
+out/
+
+# Native shells. The web image serves the Next server; these are hundreds of
+# megabytes of Gradle and Xcode project that it would copy and never use.
+android/
+ios/
+
+.env
+.env.local
+
+npm-debug.log*
