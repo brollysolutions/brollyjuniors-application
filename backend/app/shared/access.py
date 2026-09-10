@@ -71,9 +71,8 @@ PERMISSIONS: list[PermDef] = [
     {"key": "material:manage", "description": "Manage learning materials", "feature": "materials"},
 
     # --- shared resource library -------------------------------------------
-    # Deliberately ungated by any feature and granted to every role: the whole
-    # point of the shelf is that whatever Brolly Admin puts on it reaches every
-    # teacher and student without an enrolment or a switch to turn on.
+    # Every role can open the library. Resource RLS restricts its contents to
+    # current course members or the individual recipients selected by an admin.
     {"key": "resource:read", "description": "Read the shared resource library"},
     {"key": "resource:manage", "description": "Add and remove shared resources"},
 

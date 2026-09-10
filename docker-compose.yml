@@ -11,11 +11,11 @@
 #   docker compose run --rm backend python scripts/seed.py
 #
 # Every published host port is overridable through a variable named after its
-# service: FRONTEND_PORT, BACKEND_PORT, POSTGRES_PORT, REDIS_PORT. That matters
-# here because this machine also has an older clone of this repo whose stack
-# binds 5542/6479. Redis has since moved to 6579, which clears that half;
-# Postgres still collides, so either stop that stack, or:
-#   POSTGRES_PORT=5543 docker compose up -d
+# service: FRONTEND_PORT, BACKEND_PORT, POSTGRES_PORT, REDIS_PORT, e.g.
+#   POSTGRES_PORT=6543 docker compose up -d
+# They exist because an older clone of this repo in a sibling directory binds
+# 5542/6479. Both of this stack's data ports have since been moved away from
+# those numbers (Postgres 6542, Redis 6579), so that clone no longer clashes.
 name: brollyjuniors-b2c
 
 services:
@@ -30,17 +30,17 @@ services:
       # The schema relies on lower(email) uniqueness and en-GB-ish ordering;
       # pinning the locale keeps index behaviour identical across machines.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
-    # Postgres is told to listen on 5542 inside the container as well, so this
+    # Postgres is told to listen on 6542 inside the container as well, so this
     # service is one number everywhere: the published port, the port in
     # DATABASE_URL over the compose network, and the port in
-    # backend/.env.example for a host-run API all read 5542.
-    command: ["-p", "5542"]
+    # backend/.env.example for a host-run API all read 6542.
+    command: ["-p", "6542"]
     ports:
-      - "${POSTGRES_PORT:-5542}:5542"
+      - "${POSTGRES_PORT:-6542}:6542"
     volumes:
       - brolly_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U brolly -d brolly_b2c -p 5542"]
+      test: ["CMD-SHELL", "pg_isready -U brolly -d brolly_b2c -p 6542"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -72,7 +72,7 @@ services:
     environment:
       # Service names, not localhost — but the same port numbers as the host
       # mapping, because both servers were told to listen on those ports.
-      DATABASE_URL: postgresql://brolly:brolly@postgres:5542/brolly_b2c
+      DATABASE_URL: postgresql://brolly:brolly@postgres:6542/brolly_b2c
       REDIS_URL: redis://redis:6579/0
       # The host default of 127.0.0.1 would only be reachable from inside the
       # container itself, so the frontend service could never call it.

@@ -279,9 +279,9 @@ function ContentHub() {
                 <div style={{ flex: '1 1 320px' }}>
                   <h3 style={{ marginTop: 0 }}>Shared library</h3>
                   <div className="sub">
-                    Notes, a syllabus, handouts — anything every teacher and student should have.
-                    Nothing here is tied to a course or an enrolment: publish it and it appears on
-                    everyone&apos;s Library screen.
+                    Syllabus, textbooks, recordings and notes for selected teachers and students.
+                    Select a course or individual recipients, and the resource appears on
+                    the selected recipients&apos; Library screens.
                   </div>
                 </div>
                 <button className="btn gold stack" onClick={() => go('resources')}>

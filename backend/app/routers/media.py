@@ -38,7 +38,7 @@ async def serve_media(
 
     async with db.anon() as c:
         asset = await c.one(
-            "SELECT file_name, mime_type FROM media_asset WHERE storage_key = $1", storage_key
+            "SELECT file_name, mime_type FROM media_asset WHERE storage_key = $1 AND NOT library_only", storage_key
         )
     if asset is None:
         raise not_found("That link is not valid any more. Reload the page to get a fresh one.")
@@ -71,6 +71,13 @@ async def head_media(
 ):
     """Some players probe with HEAD before they stream."""
     if not sig or not media_signer.verify(storage_key, expires, sig, u):
+        raise not_found("That link is not valid any more.")
+    # Library attachments are served only by the authenticated resource route.
+    async with db.anon() as c:
+        asset = await c.one(
+            "SELECT id FROM media_asset WHERE storage_key = $1 AND NOT library_only", storage_key
+        )
+    if asset is None:
         raise not_found("That link is not valid any more.")
     path = media_store.open(storage_key)
     if path is None:

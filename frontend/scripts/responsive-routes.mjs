@@ -145,6 +145,14 @@ export const ROUTES = [
         name: 'resource-form',
         run: `${A}; ${H}click('Shared library', 0, 1800); ${H}click('Add a resource', 0, 1200)`,
       },
+      {
+        name: 'resource-course-form',
+        run: `${A}; ${H}click('Shared library', 0, 1800); ${H}click('Add a resource', 0, 1200); `
+          + `const course = document.querySelectorAll('[role="dialog"] select')[1]; `
+          + `if (!course?.options[1]) throw new Error('No course available'); `
+          + `course.value = course.options[1].value; course.dispatchEvent(new Event('change', { bubbles: true })); `
+          + `${H}wait(400); if (document.querySelector('.resource-recipients')) throw new Error('Course sharing did not activate');`,
+      },
       // Not covered: the resource Edit sheet and its delete confirmation. Both
       // need a row on the shelf, and nothing seeds one, so a stop for them
       // would fail on a fresh database rather than report a real break. Seed a

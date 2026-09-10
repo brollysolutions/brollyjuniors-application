@@ -1,12 +1,8 @@
 """
 The shared resource library.
 
-Brolly Admin puts a syllabus, a set of notes or a handout on the shelf; every
-signed-in teacher and student sees it immediately. No enrolment, no course, no
-sharing step — which is the one place this product deliberately steps outside
-the entitlement model the rest of it is built on. sql/007_resources.sql states
-the same rule as a policy, so a handler added later cannot widen or narrow it
-by accident.
+Admins share resources with a course or selected individuals. PostgreSQL
+row-level security checks current course membership on every read/download.
 
 Both halves live here rather than in admin.py: the rule that makes writing and
 reading different is the whole feature, and it is easier to see when the two
@@ -18,13 +14,14 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..audit import AuditEntry
 from ..deps import Actor, requires
 from ..errors import bad_request, not_found
 from ..media import (
-    UPLOAD_TYPES, media_store, sha256_bytes, sign_asset, storage_key_for,
+    UPLOAD_TYPES, media_store, sha256_bytes, storage_key_for,
 )
 from ..config import settings
 
@@ -33,7 +30,7 @@ router = APIRouter()
 #: The shelf as the UI groups it. Free text in the column on purpose — a new
 #: kind of thing to file should not be a migration — but the ones we offer are
 #: fixed here so the filter chips mean something.
-CATEGORIES = ("syllabus", "notes", "handout", "policy", "link", "other")
+CATEGORIES = ("syllabus", "textbook", "recording", "notes", "handout", "policy", "link", "other")
 
 MAX_TITLE = 200
 
@@ -42,11 +39,12 @@ class ResourceBody(BaseModel):
     title: str = ""
     description: str = ""
     category: str = "notes"
-    courseId: str | None = None
+    courseId: uuid.UUID | None = None
     body: Any = None
     mediaAssetId: str | None = None
     externalUrl: str = ""
     position: int | None = None
+    recipientIds: list[uuid.UUID] | None = None
 
 
 class ResourceStatusBody(BaseModel):
@@ -87,8 +85,7 @@ def _fields(body: ResourceBody) -> dict[str, Any]:
     }
 
 
-#: Everything a reader needs, including the joined file metadata so the row can
-#: be signed without a second query.
+#: Resource content and attachment metadata; file access uses an authenticated route.
 SELECT_RESOURCE = """
     SELECT r.id, r.title, r.description, r.category, r.status, r.position,
            r.body, r.external_url, r.course_id, r.created_at, r.updated_at,
@@ -101,7 +98,29 @@ SELECT_RESOURCE = """
 """
 
 
-def _shape(row: dict[str, Any], for_user_id: str) -> dict[str, Any]:
+# Same active enrolment/teacher rules as the resource policy in migration 009.
+# Used only by admins for recipient previews and counts, never to grant access.
+COURSE_RECIPIENTS = """
+    SELECT DISTINCT m.course_id, u.id AS user_id
+      FROM (
+        SELECT e.course_id, e.user_id, 'STUDENT' AS role FROM enrollment e
+         WHERE e.status = 'active' AND (e.expires_on IS NULL OR e.expires_on >= current_date)
+        UNION
+        SELECT ct.course_id, ct.user_id, 'TEACHER' AS role FROM course_teacher ct
+      ) m
+      JOIN app_user u ON u.id = m.user_id
+     WHERE u.status = 'active' AND u.deleted_at IS NULL
+       AND EXISTS (SELECT 1 FROM user_role ur JOIN role r ON r.id = ur.role_id
+                    WHERE ur.user_id = u.id AND r.key = m.role)
+"""
+
+
+async def _validate_course(c, course_id: uuid.UUID | None) -> None:
+    if course_id and not await c.value("SELECT EXISTS (SELECT 1 FROM course WHERE id = $1)", course_id):
+        raise bad_request("Select an existing course.")
+
+
+def _shape(row: dict[str, Any]) -> dict[str, Any]:
     """One resource, with a usable link for its file if it has one."""
     file_info = None
     if row.get("storage_key"):
@@ -110,7 +129,7 @@ def _shape(row: dict[str, Any], for_user_id: str) -> dict[str, Any]:
             "mimeType": row.get("mime_type"),
             "bytes": row.get("bytes"),
             "kind": row.get("kind"),
-            **sign_asset(row, for_user_id),
+            "url": f"/resources/{row['id']}/file",
         }
     return {
         "id": str(row["id"]),
@@ -132,20 +151,18 @@ def _shape(row: dict[str, Any], for_user_id: str) -> dict[str, Any]:
 
 
 # ===========================================================================
-# Reading — every signed-in teacher and student, no enrolment required
+# Reading - selected recipients and admins
 # ===========================================================================
 
 @router.get("/api/v1/resources")
 async def list_resources(actor: Actor = Depends(requires("resource:read"))):
     async with actor.db() as c:
-        # No status filter here: the RLS policy already limits a non-admin to
-        # published rows, so a teacher and an admin can run the same query and
-        # get the answer each is allowed to have.
+        # RLS checks current course membership or an explicit recipient selection.
         rows = await c.query(SELECT_RESOURCE + """
              WHERE r.status = 'published'
              ORDER BY r.position, r.created_at DESC""")
         return {
-            "resources": [_shape(r, actor.user_id) for r in rows],
+            "resources": [_shape(r) for r in rows],
             "categories": list(CATEGORIES),
         }
 
@@ -156,7 +173,57 @@ async def read_resource(resource_id: str, actor: Actor = Depends(requires("resou
         row = await c.one(SELECT_RESOURCE + " WHERE r.id = $1", resource_id)
         if row is None or (row["status"] != "published" and actor.role != "BROLLY_ADMIN"):
             raise not_found("No such resource.")
-        return {"resource": _shape(row, actor.user_id)}
+        return {"resource": _shape(row)}
+
+
+@router.get("/api/v1/resources/{resource_id}/file")
+async def download_resource(
+    resource_id: uuid.UUID, actor: Actor = Depends(requires("resource:read")),
+):
+    # Use the current session and RLS on every download, including after a
+    # recipient is removed or a resource is hidden. No transferable media URL.
+    async with actor.db() as c:
+        row = await c.one(SELECT_RESOURCE + " WHERE r.id = $1", resource_id)
+        if row is None or not row.get("storage_key"):
+            raise not_found("No such resource file.")
+    path = media_store.open(row["storage_key"])
+    if path is None:
+        raise not_found("This file has not been uploaded yet.")
+    return FileResponse(
+        path, media_type=row["mime_type"] or "application/octet-stream",
+        filename=row["file_name"], content_disposition_type="inline",
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+async def _set_recipients(c, resource_id: str, recipients: list[uuid.UUID]) -> None:
+    ids = list(dict.fromkeys(recipients))
+    valid = await c.value("""
+        SELECT count(*) FROM app_user u
+         WHERE u.id = ANY($1::uuid[]) AND (
+           (u.deleted_at IS NULL AND u.status = 'active') OR EXISTS (
+             SELECT 1 FROM resource_recipient rr WHERE rr.resource_id = $2 AND rr.user_id = u.id
+           ))
+           AND EXISTS (SELECT 1 FROM user_role ur JOIN role r ON r.id = ur.role_id
+                        WHERE ur.user_id = u.id AND r.key IN ('TEACHER', 'STUDENT'))
+    """, ids, resource_id)
+    if valid != len(ids):
+        raise bad_request("Select active teachers or students as recipients.")
+    await c.execute("DELETE FROM resource_recipient WHERE resource_id = $1", resource_id)
+    await c.execute("""
+        INSERT INTO resource_recipient (resource_id, user_id)
+        SELECT $1::uuid, unnest($2::uuid[])
+    """, resource_id, ids)
+
+
+async def _validate_attachment(c, asset_id: str | None) -> None:
+    if not asset_id:
+        return
+    row = await c.one("""
+        SELECT id FROM media_asset WHERE id = $1 AND library_only
+    """, asset_id)
+    if row is None:
+        raise bad_request("Upload this file through the shared library before attaching it.")
 
 
 # ===========================================================================
@@ -167,21 +234,28 @@ async def read_resource(resource_id: str, actor: Actor = Depends(requires("resou
 async def admin_list_resources(actor: Actor = Depends(requires("resource:manage"))):
     async with actor.db() as c:
         rows = await c.query(SELECT_RESOURCE + " ORDER BY r.position, r.created_at DESC")
+        course_recipients: dict[str, list[str]] = {}
+        for member in await c.query(COURSE_RECIPIENTS):
+            course_recipients.setdefault(str(member["course_id"]), []).append(str(member["user_id"]))
+        courses = await c.query("SELECT id, title FROM course ORDER BY title")
+        assignments = await c.query("SELECT resource_id, user_id FROM resource_recipient")
+        recipients_by_resource: dict[str, list[str]] = {}
+        for assignment in assignments:
+            recipients_by_resource.setdefault(str(assignment["resource_id"]), []).append(str(assignment["user_id"]))
         return {
-            "resources": [_shape(r, actor.user_id) for r in rows],
+            "resources": [{**_shape(r), "recipientIds": (course_recipients.get(str(r["course_id"]), []) if r["course_id"]
+                                                       else recipients_by_resource.get(str(r["id"]), []))} for r in rows],
+            "recipients": await c.query("""
+                SELECT u.id, u.full_name AS name, u.email, r.key AS role,
+                       CASE WHEN u.deleted_at IS NOT NULL THEN 'disabled' ELSE u.status END AS status
+                  FROM app_user u JOIN user_role ur ON ur.user_id = u.id
+                  JOIN role r ON r.id = ur.role_id
+                 WHERE r.key IN ('TEACHER', 'STUDENT') AND (u.deleted_at IS NULL OR EXISTS (
+                   SELECT 1 FROM resource_recipient rr WHERE rr.user_id = u.id))
+                 ORDER BY u.full_name, u.email
+            """),
             "categories": list(CATEGORIES),
-            "courses": await c.query("SELECT id, title FROM course ORDER BY title"),
-            # How many people the shelf reaches, which is the thing worth
-            # knowing before adding to it.
-            "audience": await c.one("""
-                SELECT (SELECT count(*)::int FROM app_user u
-                          JOIN user_role ur ON ur.user_id = u.id
-                          JOIN role r ON r.id = ur.role_id AND r.key = 'STUDENT'
-                         WHERE u.deleted_at IS NULL AND u.status = 'active') AS students,
-                       (SELECT count(*)::int FROM app_user u
-                          JOIN user_role ur ON ur.user_id = u.id
-                          JOIN role r ON r.id = ur.role_id AND r.key = 'TEACHER'
-                         WHERE u.deleted_at IS NULL AND u.status = 'active') AS teachers"""),
+            "courses": [{**course, "recipientIds": course_recipients.get(str(course["id"]), [])} for course in courses],
         }
 
 
@@ -192,6 +266,8 @@ async def create_resource(
     f = _fields(body)
     resource_id = str(uuid.uuid4())
     async with actor.db() as c:
+        await _validate_course(c, f["course_id"])
+        await _validate_attachment(c, f["media_asset_id"])
         await c.execute(
             """INSERT INTO resource (id, title, description, category, course_id, body,
                                      media_asset_id, external_url, position, status, created_by)
@@ -199,17 +275,18 @@ async def create_resource(
             resource_id, f["title"], f["description"], f["category"], f["course_id"],
             f["body"], f["media_asset_id"], f["external_url"], f["position"], actor.user_id,
         )
-        reach = await c.one("""
-            SELECT count(*)::int AS n FROM app_user u
-              JOIN user_role ur ON ur.user_id = u.id
-              JOIN role r ON r.id = ur.role_id AND r.key IN ('TEACHER','STUDENT')
-             WHERE u.deleted_at IS NULL AND u.status = 'active'""")
+        # A course selection replaces manual sharing, including stale selections.
+        selected = [] if f["course_id"] else body.recipientIds or []
+        await _set_recipients(c, resource_id, selected)
+        visible_to = len(set(selected))
+        if f["course_id"]:
+            visible_to = len(await c.query(COURSE_RECIPIENTS + " AND m.course_id = $1", f["course_id"]))
         await actor.log_audit(c, AuditEntry(
             action="resource.created", entity_type="resource", entity_id=resource_id,
             summary=f'Added "{f["title"]}" to the shared library',
-            after={"title": f["title"], "status": "published"},
+            after={"title": f["title"], "status": "published", "recipientIds": selected},
         ))
-        return {"id": resource_id, "visibleTo": reach["n"]}
+        return {"id": resource_id, "visibleTo": visible_to}
 
 
 @router.patch("/api/v1/admin/resources/{resource_id}")
@@ -218,9 +295,13 @@ async def update_resource(
 ):
     f = _fields(body)
     async with actor.db() as c:
-        before = await c.one("SELECT title, status FROM resource WHERE id = $1", resource_id)
+        before = await c.one("SELECT title, status FROM resource WHERE id = $1 FOR UPDATE", resource_id)
         if before is None:
             raise not_found("No such resource.")
+        await _validate_course(c, f["course_id"])
+        await _validate_attachment(c, f["media_asset_id"])
+        if f["course_id"] or body.recipientIds is not None:
+            await _set_recipients(c, resource_id, [] if f["course_id"] else body.recipientIds)
         await c.execute(
             """UPDATE resource SET title = $1, description = $2, category = $3, course_id = $4,
                       body = $5, media_asset_id = $6, external_url = $7, position = $8,
@@ -232,7 +313,7 @@ async def update_resource(
         await actor.log_audit(c, AuditEntry(
             action="resource.updated", entity_type="resource", entity_id=resource_id,
             summary=f'Updated "{f["title"]}" in the shared library',
-            before=before, after={"title": f["title"]},
+            before=before, after={"title": f["title"], "recipientIds": body.recipientIds},
         ))
         return {"ok": True}
 
@@ -324,7 +405,8 @@ async def upload_media(
         raise bad_request("That file is empty.")
 
     file_name = (file.filename or "file").strip()[:200]
-    digest = sha256_bytes(data)
+    # Separate the library deduplication namespace from course/public assets.
+    digest = sha256_bytes(b"brolly-library\0" + data)
     key = storage_key_for(digest, file_name)
 
     async with actor.db() as c:
@@ -335,6 +417,7 @@ async def upload_media(
             # Same bytes already here under whatever name they were first given.
             # Make sure they are actually on disk (a metadata-only row from the
             # seed has none) and reuse the row.
+            await _validate_attachment(c, str(existing["id"]))
             media_store.write(existing["storage_key"], data)
             return {
                 "id": str(existing["id"]), "fileName": existing["file_name"],
@@ -347,8 +430,8 @@ async def upload_media(
         asset_id = str(uuid.uuid4())
         await c.execute(
             """INSERT INTO media_asset (id, sha256, storage_key, file_name, kind, mime_type,
-                                        bytes, visibility, uploaded_by)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,'protected',$8)""",
+                                        bytes, visibility, uploaded_by, library_only)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,'protected',$8,true)""",
             asset_id, digest, key, file_name, kind, mime, total, actor.user_id,
         )
         await actor.log_audit(c, AuditEntry(

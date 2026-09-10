@@ -22,7 +22,7 @@ port was made from.
 |---|---|---|
 | Frontend | React 19 + Vite (SPA, port 5273) | **Next.js 16.3.4** + React 19 (port **3000**) |
 | Backend | Fastify 5 + TypeScript (port 4100) | **FastAPI** + Python 3.14 (port **8000**) |
-| Database | PGlite (Postgres 16 in WebAssembly, file-backed) | **PostgreSQL 16** in Docker, port **5542** |
+| Database | PGlite (Postgres 16 in WebAssembly, file-backed) | **PostgreSQL 16** in Docker, port **6542** |
 | Cache | *(none — in-process dicts)* | **Redis 7** in Docker, port **6579** |
 
 ---
@@ -43,7 +43,7 @@ wipe the data.
 Ports are overridable when something already holds them:
 
 ```bash
-POSTGRES_PORT=5543 REDIS_PORT=6580 docker compose up -d
+POSTGRES_PORT=6543 REDIS_PORT=6580 docker compose up -d
 ```
 
 ### On the host (hot reload)
@@ -51,7 +51,7 @@ POSTGRES_PORT=5543 REDIS_PORT=6580 docker compose up -d
 Compose still publishes Postgres and Redis, so the original workflow is intact:
 
 ```bash
-docker compose up -d postgres redis       # Postgres :5542, Redis :6579
+docker compose up -d postgres redis       # Postgres :6542, Redis :6579
 
 cd backend
 py -3 -m venv .venv
@@ -189,7 +189,7 @@ verify the port; it lives outside the repo in the session scratchpad.
 ## What is here
 
 ```
-docker-compose.yml   Postgres 16 on 5542, Redis 7 on 6579
+docker-compose.yml   Postgres 16 on 6542, Redis 7 on 6579
 backend/
   app/
     main.py          FastAPI app, problem+json errors, security headers
@@ -288,3 +288,27 @@ Postgres, because losing them would sign everyone out.
 build. [`~/.wslconfig`](file:///C:/Users/my%20pc/.wslconfig) now caps the WSL2 VM
 at 2 GB, which stopped it. If Docker dies again, `docker compose up -d` brings
 Postgres and Redis back with the data intact — both use named volumes.
+
+
+## Shared library access
+
+Admins can choose Syllabus, Textbook, Recording or Notes. Selecting **About a
+course** automatically shares the resource with students who hold active,
+unexpired enrolments and teachers assigned to that course. Access follows
+current membership, including later enrolments and removals. People outside the
+course cannot read or download it. Admins retain management access.
+
+Without a course, **Share with** selects individual teachers and students.
+Selecting a course replaces manual recipients; clearing the course requires a
+new individual selection. No course and no recipients keeps a resource private
+to admins. Hiding a resource revokes access. External links still use their
+host's own sharing permissions.
+
+Migration `008_resource_recipients.sql` restricts library downloads to authenticated
+recipients. Migration `009_resource_course_sharing.sql` makes existing course-tagged
+resources available to that course's current members and clears their old manual
+assignments. Untagged resources keep their individual recipients. Deploy frontend
+and backend together; Docker applies migrations on backend startup.
+
+Run access regression checks with `python -B scripts/test_resources.py` from
+`backend/`. They exercise real PostgreSQL RLS and roll back all database changes.

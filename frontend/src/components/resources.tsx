@@ -3,7 +3,7 @@
 /**
  * The shared resource library.
  *
- * Brolly Admin fills the shelf; every teacher and student reads the same shelf.
+ * Brolly Admin chooses which teachers and students can read each resource.
  * Both views live here because the difference between them is the whole point
  * of the feature, and it is easier to see when they are a screen apart.
  *
@@ -27,15 +27,18 @@ type ResourceFile = {
 }
 type Resource = {
   id: string; title: string; description: string; category: string
+  recipientIds?: string[]
   status: 'published' | 'hidden'; body: Block[]; externalUrl: string
   courseId: string | null; course: string | null; mediaAssetId: string | null
   createdAt: string; updatedAt: string; file: ResourceFile | null
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
-  syllabus: 'Syllabus', notes: 'Notes', handout: 'Handout',
+  syllabus: 'Syllabus', textbook: 'Textbook', recording: 'Recording', notes: 'Notes', handout: 'Handout',
   policy: 'Policy', link: 'Link', other: 'Other',
 }
+type Recipient = { id: string; name: string; email: string; role: string; status: string }
+
 const label = (c: string) => CATEGORY_LABEL[c] ?? c
 
 const kb = (n: number) =>
@@ -91,11 +94,11 @@ export function ResourceLibrary() {
         return (
           <>
             <Head title="Library"
-              sub="Notes, syllabus and handouts shared by Brolly with everyone" />
+              sub="Syllabus, textbooks, recordings and notes shared with you" />
 
             {d.resources.length === 0 ? (
               <Empty title="Nothing here yet"
-                detail="Brolly adds notes, a syllabus and handouts here. Anything they add shows up on this page straight away." />
+                detail="Resources appear here when Brolly shares them with you." />
             ) : (
               <>
                 {used.length > 1 ? (
@@ -126,6 +129,7 @@ export function ResourceLibrary() {
 
 function ResourceCard({ r }: { r: Resource }) {
   const [open, setOpen] = useState(false)
+  const [fileError, setFileError] = useState('')
   const hasNotes = (r.body ?? []).length > 0
 
   return (
@@ -151,10 +155,11 @@ function ResourceCard({ r }: { r: Resource }) {
           </button>
         ) : null}
         {r.file ? (
-          <a className="btn gold sm" href={client.mediaUrl(r.file.url)}
-            target="_blank" rel="noopener noreferrer">
-            Open <span className="tiny" style={{ opacity: .8 }}>{kb(r.file.bytes)}</span>
-          </a>
+          <Action small label={`Open ${kb(r.file.bytes)}`} working="Opening" onClick={async () => {
+            setFileError('')
+            try { await client.openResourceFile(r.file!.url, r.file!.fileName) }
+            catch (error: any) { setFileError(error.message) }
+          }} />
         ) : null}
         {r.externalUrl ? (
           <a className="btn ghost sm" href={r.externalUrl} target="_blank" rel="noopener noreferrer">
@@ -162,6 +167,7 @@ function ResourceCard({ r }: { r: Resource }) {
           </a>
         ) : null}
       </div>
+      {fileError ? <Note tone="rose">{fileError}</Note> : null}
       {r.file ? <div className="tiny muted mono" style={{ marginTop: 8 }}>{r.file.fileName}</div> : null}
     </div>
   )
@@ -181,29 +187,29 @@ export function AdminResources() {
     <Page q={q} what="Loading the library">
       {(d: any) => {
         const live = d.resources.filter((r: Resource) => r.status === 'published')
-        const reach = (d.audience?.teachers ?? 0) + (d.audience?.students ?? 0)
+        const reach = new Set(live.flatMap((r: Resource) => r.recipientIds ?? [])).size
         return (
           <>
             <Head title="Shared library"
-              sub="Notes, syllabus and anything else every teacher and student should have"
+              sub="Share syllabus, textbooks, recordings and notes with selected people"
               right={<button className="btn gold" onClick={() => setAdding(true)}>Add a resource</button>} />
 
             <Note tone="teal">
-              <strong>Everything published here reaches everyone.</strong> No enrolment, no course and no
-              sharing step — a teacher or student sees it on their Library screen the next time they open it.
-              Hide a resource to take it back off the shelf without deleting it.
+              <strong>Share with a course or selected people.</strong> Select a course to share with its enrolled students and assigned teachers,
+              or choose individuals when no course is selected.
+              Hide a resource to remove it from recipients&apos; libraries.
             </Note>
 
             <div className="grid g4" style={{ marginTop: 18 }}>
               <Stat k="On the shelf" v={live.length} d="Visible right now" />
               <Stat small k="Hidden" v={d.resources.length - live.length} d="Kept, not shown" />
-              <Stat small k="Reaches" v={reach} d={`${d.audience?.teachers ?? 0} teachers · ${d.audience?.students ?? 0} students`} />
+              <Stat small k="People with access" v={reach} d="Across published resources" />
               <Stat small k="With a file" v={d.resources.filter((r: Resource) => r.file).length} />
             </div>
 
             {d.resources.length === 0 ? (
               <Empty title="The shelf is empty"
-                detail="Add a syllabus, a set of notes or a handout. Everyone sees it as soon as you save."
+                detail="Add a syllabus, textbook, recording or notes, then choose who can see it."
                 action={<button className="btn gold" onClick={() => setAdding(true)}>Add a resource</button>} />
             ) : (
               <Table head={['Resource', 'Kind', 'Course', 'File', 'Updated', 'Visible', '']}>
@@ -219,7 +225,7 @@ export function AdminResources() {
                     </td>
                     <td className="small muted">{fmtDate(r.updatedAt)}</td>
                     <td>{r.status === 'published'
-                      ? <Pill tone="ok">Everyone</Pill> : <Pill tone="mute">Hidden</Pill>}</td>
+                      ? <Pill tone="ok">{r.courseId ? `Course members (${r.recipientIds?.length ?? 0})` : r.recipientIds?.length ? `${r.recipientIds.length} selected` : 'Admins only'}</Pill> : <Pill tone="mute">Hidden</Pill>}</td>
                     <td className="row tight">
                       <button className="btn ghost sm" onClick={() => setEditing(r)}>Edit</button>
                       <Action small kind={r.status === 'published' ? 'ghost' : 'gold'}
@@ -229,7 +235,7 @@ export function AdminResources() {
                             status: r.status === 'published' ? 'hidden' : 'published',
                           })
                           toast(r.status === 'published'
-                            ? 'Taken off the shelf' : 'Published — everyone can see it')
+                            ? 'Taken off the shelf' : 'Published for its recipients')
                           q.reload()
                         }} />
                     </td>
@@ -239,16 +245,16 @@ export function AdminResources() {
             )}
 
             {adding && (
-              <ResourceForm courses={d.courses} categories={d.categories}
+              <ResourceForm courses={d.courses} categories={d.categories} recipients={d.recipients}
                 onClose={() => setAdding(false)}
                 onDone={n => {
                   setAdding(false)
-                  toast(`Added — visible to ${n} teachers and students now`)
+                  toast(n ? `Added - shared with ${n} people` : 'Added - visible to admins only')
                   q.reload()
                 }} />
             )}
             {editing && (
-              <ResourceForm resource={editing} courses={d.courses} categories={d.categories}
+              <ResourceForm resource={editing} courses={d.courses} categories={d.categories} recipients={d.recipients}
                 onClose={() => setEditing(null)}
                 onDone={() => { setEditing(null); toast('Saved'); q.reload() }}
                 onDelete={async () => {
@@ -263,10 +269,11 @@ export function AdminResources() {
   )
 }
 
-function ResourceForm({ resource, courses, categories, onClose, onDone, onDelete }: {
+function ResourceForm({ resource, courses, categories, recipients, onClose, onDone, onDelete }: {
   resource?: Resource
-  courses: Array<{ id: string; title: string }>
+  courses: Array<{ id: string; title: string; recipientIds: string[] }>
   categories: string[]
+  recipients: Recipient[]
   onClose: () => void
   onDone: (visibleTo: number) => void
   onDelete?: () => Promise<void>
@@ -282,6 +289,12 @@ function ResourceForm({ resource, courses, categories, onClose, onDone, onDelete
   // The id is what the API stores; the rest is only there to describe the file
   // on screen. Kept separate so "edit the title" re-sends the id it came with
   // rather than dropping the attachment.
+  const [recipientIds, setRecipientIds] = useState<string[]>(resource?.courseId ? [] : resource?.recipientIds ?? [])
+  const selectedCourse = courses.find(course => course.id === f.courseId)
+  const [recipientSearch, setRecipientSearch] = useState('')
+  const people = Array.from(new Map(recipients.map(person => [person.id, person])).values())
+  const matching = people.filter(person =>
+    `${person.name} ${person.email} ${person.role}`.toLowerCase().includes(recipientSearch.toLowerCase()))
   const [assetId, setAssetId] = useState<string | null>(resource?.mediaAssetId ?? null)
   const [file, setFile] = useState<ResourceFile | null>(resource?.file ?? null)
   const [err, setErr] = useState('')
@@ -292,13 +305,13 @@ function ResourceForm({ resource, courses, categories, onClose, onDone, onDelete
   return (
     <Modal title={resource ? `Edit ${resource.title}` : 'Add a resource'} onClose={onClose}>
       <p className="small muted" style={{ marginTop: 0 }}>
-        Saved straight to the shelf: every teacher and student sees it immediately.
+        Select a course to share with its members automatically, or select individual people. Admins can manage all resources.
       </p>
 
       <Field label="Title">
         <input value={f.title} onChange={set('title')} placeholder="Python Foundations — syllabus 2026" />
       </Field>
-      <Field label="One-line summary" help="Shown under the title on everyone's Library screen.">
+      <Field label="One-line summary" help="Shown under the title for selected recipients.">
         <input value={f.description} onChange={set('description')} />
       </Field>
 
@@ -309,13 +322,52 @@ function ResourceForm({ resource, courses, categories, onClose, onDone, onDelete
           </select>
         </Field>
         <Field label="About a course (optional)"
-          help="A label to help people find it. It stays visible to everyone either way.">
-          <select value={f.courseId} onChange={set('courseId')}>
+          help="Automatically share with students enrolled in this course and its assigned teachers.">
+          <select value={f.courseId} onChange={e => {
+            setF({ ...f, courseId: e.target.value })
+            setRecipientIds([])
+          }}>
             <option value="">Not course-specific</option>
             {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
           </select>
         </Field>
       </div>
+
+      {f.courseId ? (
+        <Note tone="teal">
+          <strong>Share with {selectedCourse?.title ?? 'this course'}.</strong>{' '}
+          All enrolled students with active course access and assigned teachers will see this resource
+          after you save. Currently {selectedCourse?.recipientIds.length ?? 0} people.
+          Access updates automatically when course membership changes.
+        </Note>
+      ) : (
+        <fieldset className="resource-recipients">
+          <legend>Share with</legend>
+          <p className="small muted">{recipientIds.length} selected. No selection means admins only.</p>
+          <Field label="Find teachers or students">
+            <input type="search" value={recipientSearch} onChange={e => setRecipientSearch(e.target.value)}
+              placeholder="Search name, email or role" />
+          </Field>
+          <div className="resource-recipient-list" role="group" aria-label="Recipients">
+            {matching.map(person => (
+              <label className="resource-recipient" key={person.id}>
+                <input type="checkbox" checked={recipientIds.includes(person.id)}
+                  disabled={person.status !== 'active' && !recipientIds.includes(person.id)}
+                  onChange={e => setRecipientIds(ids => e.target.checked
+                    ? [...ids, person.id] : ids.filter(id => id !== person.id))} />
+                <span className="break"><strong>{person.name}</strong>
+                  <span className="small muted">{person.role === 'TEACHER' ? 'Teacher' : 'Student'} &middot; {person.email}
+                    {person.status !== 'active' ? ' - Inactive' : ''}</span>
+                </span>
+              </label>
+            ))}
+            {!matching.length ? <p className="small muted">No matching people.</p> : null}
+          </div>
+          {recipientIds.length > 0 ? (
+            <button className="btn ghost sm" onClick={() => setRecipientIds([])}>Clear selection</button>
+          ) : null}
+        </fieldset>
+      )}
 
       <Field label="Notes"
         help="Plain text. A line starting with # is a heading, lines starting with - become a list.">
@@ -360,13 +412,13 @@ function ResourceForm({ resource, courses, categories, onClose, onDone, onDelete
       {err ? <Note tone="rose"><strong>{err}</strong></Note> : null}
 
       <div className="row" style={{ marginTop: 14 }}>
-        <Action label={resource ? 'Save changes' : 'Add to the library'} onClick={async () => {
+        <Action label={resource ? 'Save changes' : 'Add to the library'} disabled={!!uploading} onClick={async () => {
           setErr('')
           const payload = {
             title: f.title, description: f.description, category: f.category,
             courseId: f.courseId || null, externalUrl: f.externalUrl,
             body: toBlocks(f.notes),
-            mediaAssetId: assetId,
+            mediaAssetId: assetId, recipientIds: f.courseId ? [] : recipientIds,
           }
           try {
             if (resource) {

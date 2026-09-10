@@ -72,7 +72,7 @@ async function raw(path: string, init: RequestInit = {}): Promise<Response> {
   })
 }
 
-export async function api<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+async function request(path: string, init: RequestInit = {}): Promise<Response> {
   let res = await raw(path, init)
 
   // Access tokens last ten minutes; a silent refresh is the normal case, not
@@ -89,6 +89,11 @@ export async function api<T = any>(path: string, init: RequestInit = {}): Promis
     } catch { /* non-JSON error */ }
     throw new ApiError(res.status, code, detail)
   }
+  return res
+}
+
+export async function api<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await request(path, init)
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
@@ -159,3 +164,29 @@ export async function logout() {
 
 /** Try to restore a session on load, using only the HttpOnly refresh cookie. */
 export const restore = () => refresh()
+
+/** Fetch private files using the same authenticated session as JSON requests. */
+export async function openResourceFile(path: string, fileName: string): Promise<void> {
+  // Open synchronously from the tap so browsers do not block the preview tab.
+  const preview = window.open('about:blank', '_blank')
+  if (preview) preview.opener = null
+  try {
+    const response = await request(path, { cache: 'no-store' })
+    const url = URL.createObjectURL(await response.blob())
+    if (preview && !preview.closed) {
+      preview.location.replace(url)
+    } else {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    }
+    // Leave enough time for the new tab to load before releasing the blob.
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch (error) {
+    preview?.close()
+    throw error
+  }
+}
