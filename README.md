@@ -66,6 +66,10 @@ npm install
 npm run dev                               # http://localhost:3000
 ```
 
+> Frontend conventions, the design tokens and the responsive audit that gates
+> a UI change live in [`frontend/DESIGN.md`](./frontend/DESIGN.md). Read it
+> before changing a screen.
+
 Then open **http://localhost:3000**. The sign-in page has a one-click button
 for each demo login.
 

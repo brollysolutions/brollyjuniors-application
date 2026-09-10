@@ -142,7 +142,26 @@ p { overflow-wrap: break-word }
 a { color: inherit }
 button { font-family: var(--sans); font-size: inherit; cursor: pointer }
 :focus-visible { outline: 2px solid var(--brand-secondary); outline-offset: 2px; border-radius: var(--r-xs) }
-input, select, textarea { font-family: var(--sans) }
+/* Every control, in or out of a .field.
+   A bare <select> in a table cell is still a 44px target and still 16px, so
+   iOS does not zoom the page when it takes focus. .field layers width and
+   focus ring on top; .editor and .rubric override deliberately. */
+input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+select, textarea {
+  font-family: var(--sans);
+  font-size: 16px;
+  min-height: var(--tap);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--white);
+  color: var(--ink);
+  max-width: 100%;
+}
+@media (min-width: 768px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+  select, textarea { font-size: var(--fs-sm) }
+}
 
 /* Media can never be wider than the box it sits in, whatever the asset says. */
 img, video, canvas, svg, iframe { max-width: 100%; height: auto; display: block }

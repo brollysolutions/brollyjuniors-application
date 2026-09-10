@@ -15,6 +15,12 @@
 - [ ] Migration added or not applicable
 - [ ] OpenAPI and generated TypeScript contracts updated or not applicable
 
+## Frontend
+
+- [ ] `npm run audit:responsive` passes, or no UI changed
+- [ ] New screens have a stop in `frontend/scripts/responsive-routes.mjs`
+- [ ] Follows [`frontend/DESIGN.md`](../frontend/DESIGN.md) — no layout in a `style` prop, values off the scale, 44px targets
+
 ## Review checklist
 
 - [ ] Work is isolated on a task branch

@@ -228,7 +228,7 @@ function CourseView() {
                   <td><strong>{z.title}</strong></td>
                   <td className="mono">{z.questions}</td>
                   <td className="mono">{z.attempts}</td>
-                  <td style={{ width: 180 }}>
+                  <td>
                     {z.avg_pct != null ? <Bar v={z.avg_pct} label={`Average for ${z.title}`} /> : '—'}
                   </td>
                   <td className="mono">{z.pass_mark_pct}%</td>
@@ -633,8 +633,7 @@ function SessionView() {
                 <td>
                   <select value={marks[a.user_id] ?? a.status ?? ''}
                     aria-label={`Attendance for ${a.full_name}`}
-                    onChange={e => setMarks({ ...marks, [a.user_id]: e.target.value })}
-                    style={{ padding: '4px 8px', border: '1px solid var(--line)', borderRadius: 6 }}>
+                    onChange={e => setMarks({ ...marks, [a.user_id]: e.target.value })}>
                     <option value="">—</option>
                     <option value="registered">Registered</option>
                     <option value="attended">Attended</option>

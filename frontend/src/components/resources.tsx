@@ -286,6 +286,7 @@ function ResourceForm({ resource, courses, categories, onClose, onDone, onDelete
   const [file, setFile] = useState<ResourceFile | null>(resource?.file ?? null)
   const [err, setErr] = useState('')
   const [uploading, setUploading] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value })
 
   return (
@@ -379,12 +380,27 @@ function ResourceForm({ resource, courses, categories, onClose, onDone, onDelete
         }} />
         <button className="btn ghost stack" onClick={onClose}>Cancel</button>
         {onDelete ? (
-          <Action kind="ghost" label="Delete" working="Deleting" onClick={async () => {
-            setErr('')
-            try { await onDelete() } catch (e: any) { setErr(e.message) }
-          }} />
+          // Two taps, not one. Deleting is the only thing on this screen that
+          // cannot be undone — Hide takes a resource off the shelf and keeps
+          // it — so a stray click on a button sitting beside Save must not be
+          // enough to destroy someone's notes.
+          confirming ? (
+            <Action kind="ghost" label="Yes, delete it" working="Deleting" onClick={async () => {
+              setErr('')
+              try { await onDelete() } catch (e: any) { setErr(e.message); setConfirming(false) }
+            }} />
+          ) : (
+            <button className="btn ghost stack" onClick={() => setConfirming(true)}>Delete</button>
+          )
         ) : null}
       </div>
+      {confirming ? (
+        <Note tone="rose">
+          <strong>Delete &ldquo;{resource?.title}&rdquo; for good?</strong> It disappears for every teacher
+          and student, and it cannot be brought back.{' '}
+          <button className="btn ghost sm" onClick={() => setConfirming(false)}>Keep it</button>
+        </Note>
+      ) : null}
     </Modal>
   )
 }
