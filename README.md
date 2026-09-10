@@ -23,7 +23,7 @@ port was made from.
 | Frontend | React 19 + Vite (SPA, port 5273) | **Next.js 16.3.4** + React 19 (port **3000**) |
 | Backend | Fastify 5 + TypeScript (port 4100) | **FastAPI** + Python 3.14 (port **8000**) |
 | Database | PGlite (Postgres 16 in WebAssembly, file-backed) | **PostgreSQL 16** in Docker, port **5542** |
-| Cache | *(none — in-process dicts)* | **Redis 7** in Docker, port **6479** |
+| Cache | *(none — in-process dicts)* | **Redis 7** in Docker, port **6579** |
 
 ---
 
@@ -43,7 +43,7 @@ wipe the data.
 Ports are overridable when something already holds them:
 
 ```bash
-POSTGRES_PORT=5543 REDIS_PORT=6480 docker compose up -d
+POSTGRES_PORT=5543 REDIS_PORT=6580 docker compose up -d
 ```
 
 ### On the host (hot reload)
@@ -51,7 +51,7 @@ POSTGRES_PORT=5543 REDIS_PORT=6480 docker compose up -d
 Compose still publishes Postgres and Redis, so the original workflow is intact:
 
 ```bash
-docker compose up -d postgres redis       # Postgres :5542, Redis :6479
+docker compose up -d postgres redis       # Postgres :5542, Redis :6579
 
 cd backend
 py -3 -m venv .venv
@@ -185,7 +185,7 @@ verify the port; it lives outside the repo in the session scratchpad.
 ## What is here
 
 ```
-docker-compose.yml   Postgres 16 on 5542, Redis 7 on 6479
+docker-compose.yml   Postgres 16 on 5542, Redis 7 on 6579
 backend/
   app/
     main.py          FastAPI app, problem+json errors, security headers

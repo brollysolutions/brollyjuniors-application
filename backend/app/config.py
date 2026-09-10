@@ -2,7 +2,7 @@
 Configuration.
 
 Every value has a working default so the app runs straight after
-`docker compose up`. Ports match docker-compose.yml: Postgres 5542, Redis 6479.
+`docker compose up`. Ports match docker-compose.yml: Postgres 5542, Redis 6579.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     db_pool_max: int = 10
 
     # --- redis -------------------------------------------------------------
-    redis_url: str = "redis://127.0.0.1:6479/0"
+    redis_url: str = "redis://127.0.0.1:6579/0"
 
     # --- auth --------------------------------------------------------------
     # Signing keys are generated on first boot and kept here so a restart does
