@@ -20,8 +20,8 @@ port was made from.
 
 | Layer | Was | Is now |
 |---|---|---|
-| Frontend | React 19 + Vite (SPA, port 5273) | **Next.js 16.3.4** + React 19 (port **3000**) |
-| Backend | Fastify 5 + TypeScript (port 4100) | **FastAPI** + Python 3.14 (port **8000**) |
+| Frontend | React 19 + Vite (SPA, port 5273) | **Next.js 16.3.4** + React 19 (port **3301**) |
+| Backend | Fastify 5 + TypeScript (port 4100) | **FastAPI** + Python 3.14 (port **8300**) |
 | Database | PGlite (Postgres 16 in WebAssembly, file-backed) | **PostgreSQL 16** in Docker, port **6542** |
 | Cache | *(none — in-process dicts)* | **Redis 7** in Docker, port **6579** |
 
@@ -63,14 +63,14 @@ py -3 -m venv .venv
 
 cd ../frontend
 npm install
-npm run dev                               # http://localhost:3000
+npm run dev                               # http://localhost:3301
 ```
 
 > Frontend conventions, the design tokens and the responsive audit that gates
 > a UI change live in [`frontend/DESIGN.md`](./frontend/DESIGN.md). Read it
 > before changing a screen.
 
-Then open **http://localhost:3000**. The sign-in page has a one-click button
+Then open **http://localhost:3301**. The sign-in page has a one-click button
 for each demo login.
 
 | Role | Email | Password |
@@ -84,7 +84,7 @@ for each demo login.
 > API answers **404**, not 403, because a student who has not bought a course
 > should not learn that the id they guessed is a real one.
 
-**You only ever open port 3000.** Next rewrites `/api/*` to FastAPI on 8000, so
+**You only ever open port 3301.** Next rewrites `/api/*` to FastAPI on 8300, so
 the browser sees a single origin — which is what lets the refresh token be an
 HttpOnly `SameSite=Lax` cookie instead of something JavaScript can read.
 
@@ -106,7 +106,7 @@ The API address comes from `frontend/.env.local`, which Next loads on every
 build (gitignored, already written for the Android emulator):
 
 ```ini
-NEXT_PUBLIC_API_BASE_URL=http://10.0.2.2:8000
+NEXT_PUBLIC_API_BASE_URL=http://10.0.2.2:8300
 ```
 
 `10.0.2.2` is the emulator's alias for your machine — the phone's own
@@ -121,7 +121,7 @@ both platforms, so on a Mac it is that one command plus `npm run cap:ios`.
 
 ### The one thing that is genuinely different
 
-On the web the browser talks only to port 3000 and Next proxies onwards. **A
+On the web the browser talks only to port 3301 and Next proxies onwards. **A
 phone has no Next server**, so the app calls FastAPI directly and every request
 is cross-origin. Three consequences, all handled:
 
@@ -152,7 +152,7 @@ Point the shell at a dev server instead of the copied files. Use the machine's
 LAN address — on a device, `localhost` is the phone:
 
 ```bash
-CAP_SERVER_URL=http://192.168.1.20:3000 npm run cap:run:android
+CAP_SERVER_URL=http://192.168.1.20:3301 npm run cap:run:android
 ```
 
 Debug builds allow cleartext for this (`android/app/src/debug/`); release

@@ -20,10 +20,10 @@ class Settings(BaseSettings):
     )
 
     # --- api ---------------------------------------------------------------
-    port: int = 8000
+    port: int = 8300
     host: str = "127.0.0.1"
     node_env: str = "development"
-    web_origin: str = "http://localhost:3000"
+    web_origin: str = "http://localhost:3301"
     # The Capacitor app is not served from web_origin — it is served off the
     # device, so to this API it is a separate origin that must be named
     # explicitly (a credentialed request cannot be answered with "*"). These

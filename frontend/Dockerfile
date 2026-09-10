@@ -24,7 +24,7 @@ COPY . .
 # .next/routes-manifest.json, so the API address is baked into the image here
 # — setting API_ORIGIN only at runtime would silently keep the default.
 # Rebuild the image to point it somewhere else.
-ARG API_ORIGIN=http://backend:8000
+ARG API_ORIGIN=http://backend:8300
 ENV API_ORIGIN=$API_ORIGIN
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -37,7 +37,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
+    PORT=3301 \
     HOSTNAME=0.0.0.0
 
 RUN addgroup -g 10001 -S nodejs && adduser -S -u 10001 -G nodejs nextjs
@@ -49,6 +49,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 3301
 
 CMD ["node", "server.js"]

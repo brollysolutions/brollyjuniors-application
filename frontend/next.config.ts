@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next'
 
-const API = process.env.API_ORIGIN ?? 'http://127.0.0.1:8000'
+const API = process.env.API_ORIGIN ?? 'http://127.0.0.1:8300'
 
 /**
  * Two build targets out of one source tree.

@@ -10,7 +10,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
  * CAP_SERVER_URL turns on live reload: point the shell at a dev server on the
  * LAN instead of the copied files, e.g.
  *
- *   CAP_SERVER_URL=http://192.168.1.20:3000 npm run cap:run:android
+ *   CAP_SERVER_URL=http://192.168.1.20:3301 npm run cap:run:android
  *
  * It must be a LAN address, not localhost — on a device or emulator localhost
  * is the phone. cleartext is allowed only in that mode, and only because a dev

@@ -3,7 +3,7 @@
 #   docker compose up -d --build          everything: db, cache, backend, frontend
 #   docker compose up -d postgres redis   data services only (host-run apps)
 #
-# Then open http://localhost:3000. Only the frontend port needs to be open; it
+# Then open http://localhost:3301. Only the frontend port needs to be open; it
 # proxies /api/* to the backend service over the compose network, so the browser
 # still sees a single origin and the refresh cookie stays HttpOnly.
 #
@@ -77,8 +77,8 @@ services:
       # The host default of 127.0.0.1 would only be reachable from inside the
       # container itself, so the frontend service could never call it.
       HOST: 0.0.0.0
-      PORT: "8000"
-      WEB_ORIGIN: http://localhost:3000
+      PORT: "8300"
+      WEB_ORIGIN: http://localhost:3301
       # Deliberately NOT production. In production mode the app sets
       # Secure on the refresh cookie (needs HTTPS) and payments.py refuses to
       # run the mock provider at all — both correct, and both would break this
@@ -90,7 +90,7 @@ services:
       # every restart mints new ones and signs everybody out.
       - brolly_apikeys:/app/.data
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-8300}:8300"
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,7 +99,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).status==200 else 1)"
+        - python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8300/health',timeout=3).status==200 else 1)"
       interval: 10s
       timeout: 5s
       retries: 10
@@ -110,15 +110,15 @@ services:
       context: ./frontend
       args:
         # Baked into routes-manifest.json at build time — see frontend/Dockerfile.
-        API_ORIGIN: http://backend:8000
+        API_ORIGIN: http://backend:8300
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-3301}:3301"
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3301/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -29,7 +29,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ROUTES, WIDTHS as DEFAULT_WIDTHS } from './responsive-routes.mjs'
 
-const BASE = process.env.BASE || 'http://localhost:3000'
+const BASE = process.env.BASE || 'http://localhost:3301'
 const ONLY = (process.env.ROUTES || '').split(',').map(s => s.trim()).filter(Boolean)
 const ONLY_STOPS = (process.env.STOPS || '').split(',').map(s => s.trim()).filter(Boolean)
 const WIDTHS = process.env.WIDTHS
